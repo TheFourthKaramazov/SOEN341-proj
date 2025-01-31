@@ -18,6 +18,7 @@ To complete
 - Emy Om Sobodker - 40300379
 - Moeid Abbasi - 40201670
 - Luis Miguel Gomez - 40174754
+- Christopher Liamg - 40174418
 
 To complete
 
