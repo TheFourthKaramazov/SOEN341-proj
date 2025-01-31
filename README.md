@@ -6,3 +6,4 @@ This project is a real-time communication platform designed for seamless interac
 - Brandon Leblanc - 40058666
 - Malcolm Arcand Laliberté - 26334792
 - Emy Om Sobodker - 40300379
+- Moeid Abbasi - 40201670
