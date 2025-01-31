@@ -14,7 +14,7 @@ To complete
 
 ## Team Members
 - Brandon Leblanc - 40058666 @TheFourthKaramazov
-- Malcolm Arcand Laliberté - 26334792
+- Malcolm Arcand Laliberté - 26334792 @Shredsauce
 - Emy Om Sobodker - 40300379
 - Moeid Abbasi - 40201670
 - Luis Miguel Gomez - 40174754
