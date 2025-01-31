@@ -15,6 +15,7 @@ To complete
 - Malcolm Arcand Laliberté - 26334792
 - Emy Om Sobodker - 40300379
 - Moeid Abbasi - 40201670
+- Luis Miguel Gomez - 40174754
 
 To complete
 
