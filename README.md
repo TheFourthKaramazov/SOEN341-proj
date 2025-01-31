@@ -19,7 +19,7 @@ To complete
 - Moeid Abbasi - 40201670
 - Luis Miguel Gomez - 40174754
 - Christopher Liang - 40174418
-- Mohamed-Rabah-Ishaq Loucif - 40282580
+- Mohamed-Rabah-Ishaq Loucif - 40282580 @Tropometrie
 
 To complete
 
