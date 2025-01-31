@@ -5,3 +5,4 @@ This project is a real-time communication platform designed for seamless interac
 ## Team Members
 - Brandon Leblanc - 40058666
 - Malcolm Arcand Laliberté - 26334792
+- Emy Om Sobodker - 40300379
