@@ -4,7 +4,7 @@ This project is a real-time communication platform designed for seamless interac
 
 ## Objective
 
-To complete
+The goal is to develop a real-time communication platform for seamless text-based interactions, including text channels, direct messages, and role-based permissions, prioritizing responsiveness, scalability, and security with FastAPI, WebSockets, and Vue.js. In the short term, we aim to set up backend infrastructure, secure user authentication with JWT, real-time messaging, and a dynamic frontend with Vue.js, while ensuring secure deployment via Vercel and Docker. Long-term goals focus on enhancing scalability, adding advanced features, strengthening security, and implementing CI/CD pipelines. Deliverables are structured across four sprints: Sprint 1 covers setting up the environment; Sprint 2 focuses on core features, testing, and CI setup; Sprint 3 adds new features with TA feedback; Sprint 4 handles bug fixing, final testing, and documentation.
 
 ## Core Features
 
