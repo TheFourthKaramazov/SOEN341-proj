@@ -69,8 +69,6 @@ To complete
 
 ## Languages & Technologies 
 
-Technology Breakdown:
-
 #### Backend (Python-based)
 - FastAPI (Python) – High-performance API framework, auto-generates OpenAPI documentation.
 - SQLite (Python) or PostgreSQL – Database for storing users, messages, and channels.
