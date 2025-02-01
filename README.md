@@ -69,7 +69,28 @@ To complete
 
 ## Languages & Technologies 
 
-To complete
+Technology Breakdown:
+
+Backend (Python-based)
+FastAPI (Python) – High-performance API framework, auto-generates OpenAPI documentation.
+SQLite (Python) or PostgreSQL – Database for storing users, messages, and channels.
+WebSockets (Python - FastAPI WebSockets) – Real-time chat feature.
+JWT (Python - pyjwt) – Authentication and user session management.
+CORS Middleware (Python - FastAPI) – Allows frontend to interact with backend API.
+Pydantic (Python) – Data validation and request serialization.
+Dependency Injection (Python - FastAPI) – Simplifies API dependency management.
+
+Frontend (JavaScript-based)
+Vue.js – Frontend framework for dynamic UI.
+Vue Router – Client-side navigation.
+Pinia or Vuex – State management for chat and user sessions.
+Axios – API requests to the FastAPI backend.
+Tailwind CSS or Bootstrap (CSS) – UI styling.
+WebSockets (JavaScript - Browser API) – Real-time chat updates.
+
+Deployment
+Docker (optional) – Containerized backend/frontend.
+Vercel (frontend auto-deploy) – Free and simple hosting for Vue.js.
 
 
 
