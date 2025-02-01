@@ -80,9 +80,7 @@ Text channels are dedicated spaces where users can send and receive messages. Th
 - Luis Miguel Gomez - 40174754
 - Christopher Liang - 40174418
 - Mohamed-Rabah-Ishaq Loucif - 40282580 @Tropometrie
-
-To complete
-
+- Benjamin Zitella -40211380 @summoningstrife
 
 ## Languages & Technologies 
 
