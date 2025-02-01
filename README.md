@@ -51,7 +51,14 @@ This message will be sent as a JSON string and include the IDs of both the sende
 #### Direct Messaging Roadmap
 For the moment, our main goal is to allow a user to send a simple message over the server and have it appear instantly for the receiver. Once this is functional, we will refactor to improve efficiency as well as adding security by encrypting the messages.
 
+### Role-Based User Permissions
 
+#### What is role-based user permission?
+Role-based user permissions are defined roles in the app that allow different actions to a user based on their assigned role. In our app, there are two roles: Admin and Member.
+
+#### Admin and Member permissions
+The admin role in the app can create and delete channels and moderate messages, which includes deleting those messages. They can also send messages in channels.
+The member can only send and view messages in the allowed channels.
 
 ## Custom Feature 
 
