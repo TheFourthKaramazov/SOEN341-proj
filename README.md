@@ -75,7 +75,7 @@ Text channels are dedicated spaces where users can send and receive messages. Th
 ## Team Members
 - Brandon Leblanc - 40058666 @TheFourthKaramazov
 - Malcolm Arcand Laliberté - 26334792 @Shredsauce
-- Emy Om Sobodker - 40300379
+- Emy Om Sobodker - 40300379 @emyeatGrass
 - Moeid Abbasi - 40201670
 - Luis Miguel Gomez - 40174754 @mediis23
 - Christopher Liang - 40174418
