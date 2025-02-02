@@ -81,7 +81,7 @@ There are multiple possible custom features that could be included in our messag
 - Brandon Leblanc - 40058666 @TheFourthKaramazov
 - Malcolm Arcand Laliberté - 26334792 @Shredsauce
 - Emy Om Sobodker - 40300379 @emyeatGrass
-- Moeid Abbasi - 40201670
+- Moeid Abbasi - 40201670 @moeidabbasi
 - Luis Miguel Gomez - 40174754 @mediis23
 - Christopher Liang - 40174418
 - Mohamed-Rabah-Ishaq Loucif - 40282580 @Tropometrie
