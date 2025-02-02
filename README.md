@@ -8,8 +8,6 @@ The goal is to develop a real-time communication platform for seamless text-base
 
 ## Core Features
 
-To complete
-
 ### Direct Messaging
 
 #### What is direct messaging?
@@ -70,7 +68,7 @@ Text channels are dedicated spaces where users can send and receive messages. Th
 - Users can send and receive messages in their respective text channels using WebSockets, which allows real-time communication. Messages are stored in the database table associated with the channel.
 - Messages are displayed with real-time updates, which is implemented using Vue.js on the frontend.
 
-#### Custom Feature?
+### Custom Feature
 There are multiple possible custom features that could be included in our messaging app. For now we will list a few ones, focus on the core features such as sending and receiving messages, then we will choose and implement our custom feature. Here are possibilities :
 
 - Sending pictures/video files as messages (using FastAPI to handle the file uploads, and a database to store the files).
@@ -83,7 +81,7 @@ There are multiple possible custom features that could be included in our messag
 - Emy Om Sobodker - 40300379 @emyeatGrass
 - Moeid Abbasi - 40201670 @moeidabbasi
 - Luis Miguel Gomez - 40174754 @mediis23
-- Christopher Liang - 40174418
+- Christopher Liang - 40174418 @chrix1234
 - Mohamed-Rabah-Ishaq Loucif - 40282580 @Tropometrie
 - Benjamin Zitella -40211380 @summoningstrife
 
