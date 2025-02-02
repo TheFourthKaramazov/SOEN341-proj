@@ -77,7 +77,7 @@ Text channels are dedicated spaces where users can send and receive messages. Th
 - Malcolm Arcand Laliberté - 26334792 @Shredsauce
 - Emy Om Sobodker - 40300379
 - Moeid Abbasi - 40201670
-- Luis Miguel Gomez - 40174754
+- Luis Miguel Gomez - 40174754 @mediis23
 - Christopher Liang - 40174418
 - Mohamed-Rabah-Ishaq Loucif - 40282580 @Tropometrie
 - Benjamin Zitella -40211380 @summoningstrife
