@@ -51,7 +51,15 @@ This message will be sent as a JSON string and include the IDs of both the sende
 #### Direct Messaging Roadmap
 For the moment, our main goal is to allow a user to send a simple message over the server and have it appear instantly for the receiver. Once this is functional, we will refactor to improve efficiency as well as adding security by encrypting the messages.
 
+### Text Channels
 
+#### What Are Text Channels?
+Text channels are dedicated spaces where users can send and receive messages. They help organize conversations by keeping them relevant to their given topic.
+
+#### Text Channel Functionality
+- Users can browse a list of available text channels and join the ones they are interested in.
+- Users can send and receive messages in their respective text channels using WebSockets, which allows real-time communication. Messages are stored in the database table associated with the channel.
+- Messages are displayed with real-time updates, which is implemented using Vue.js on the frontend.
 
 ## Custom Feature 
 
