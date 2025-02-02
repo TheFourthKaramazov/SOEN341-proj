@@ -70,7 +70,12 @@ Text channels are dedicated spaces where users can send and receive messages. Th
 - Users can send and receive messages in their respective text channels using WebSockets, which allows real-time communication. Messages are stored in the database table associated with the channel.
 - Messages are displayed with real-time updates, which is implemented using Vue.js on the frontend.
 
-## Custom Feature 
+#### Custom Feature?
+There are multiple possible custom features that could be included in our messaging app. For now we will list a few ones, focus on the core features such as sending and receiving messages, then we will choose and implement our custom feature. Here are possibilities :
+
+- Sending pictures/video files as messages (using FastAPI to handle the file uploads, and a database to store the files).
+- Personalized feed showing unread messages from private channels.
+- Message scheduling (message is sent at a specific later time, can be done with FastAPI by storing the messages and sending them at the specific time).
 
 ## Team Members
 - Brandon Leblanc - 40058666 @TheFourthKaramazov
