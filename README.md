@@ -4,11 +4,9 @@ This project is a real-time communication platform designed for seamless interac
 
 ## Objective
 
-To complete
+The goal is to develop a real-time communication platform for seamless text-based interactions, including text channels, direct messages, and role-based permissions, prioritizing responsiveness, scalability, and security with FastAPI, WebSockets, and Vue.js. In the short term, we aim to set up backend infrastructure, secure user authentication with JWT, real-time messaging, and a dynamic frontend with Vue.js, while ensuring secure deployment via Vercel and Docker. Long-term goals focus on enhancing scalability, adding advanced features, strengthening security, and implementing CI/CD pipelines. Deliverables are structured across four sprints: Sprint 1 covers setting up the environment; Sprint 2 focuses on core features, testing, and CI setup; Sprint 3 adds new features with TA feedback; Sprint 4 handles bug fixing, final testing, and documentation.
 
 ## Core Features
-
-To complete
 
 ### Direct Messaging
 
@@ -70,19 +68,22 @@ Text channels are dedicated spaces where users can send and receive messages. Th
 - Users can send and receive messages in their respective text channels using WebSockets, which allows real-time communication. Messages are stored in the database table associated with the channel.
 - Messages are displayed with real-time updates, which is implemented using Vue.js on the frontend.
 
-## Custom Feature 
+### Custom Feature
+There are multiple possible custom features that could be included in our messaging app. For now we will list a few ones, focus on the core features such as sending and receiving messages, then we will choose and implement our custom feature. Here are possibilities :
+
+- Sending pictures/video files as messages (using FastAPI to handle the file uploads, and a database to store the files).
+- Personalized feed showing unread messages from private channels.
+- Message scheduling (message is sent at a specific later time, can be done with FastAPI by storing the messages and sending them at the specific time).
 
 ## Team Members
 - Brandon Leblanc - 40058666 @TheFourthKaramazov
 - Malcolm Arcand Laliberté - 26334792 @Shredsauce
 - Emy Om Sobodker - 40300379 @emyeatGrass
-- Moeid Abbasi - 40201670
-- Luis Miguel Gomez - 40174754
-- Christopher Liang - 40174418
+- Moeid Abbasi - 40201670 @moeidabbasi
+- Luis Miguel Gomez - 40174754 @mediis23
+- Christopher Liang - 40174418 @chrix1234
 - Mohamed-Rabah-Ishaq Loucif - 40282580 @Tropometrie
-
-To complete
-
+- Benjamin Zitella -40211380 @summoningstrife
 
 ## Languages & Technologies 
 
