@@ -1,6 +1,7 @@
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from datetime import timezone, datetime
+from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from app.backend.database import SessionLocal, init_db  
 from app.backend.models import User, DirectMessage, Channel, ChannelMessage  
@@ -14,6 +15,7 @@ async def lifespan(app: FastAPI):
     yield  # continue serving requests
 
 app = FastAPI(lifespan=lifespan)  # fix: use lifespan instead of `@app.on_event("startup")`
+active_connections = {}
 
 def get_db(): 
     """Provides a database session to API endpoints."""
@@ -22,6 +24,39 @@ def get_db():
         yield db
     finally:
         db.close()
+
+@app.websocket("/realtime/direct/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
+    """WebSocket route for realtime messaging"""
+
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_json()
+            print(f"Received from {user_id}: {data}")
+
+            receiver_id = data.get("receiver_id")
+            message_text = data.get("text")
+
+            new_message = DirectMessage(
+                sender_id = user_id,
+                receiver_id = receiver_id,
+                text = message_text,
+                timestamp = datetime.now(timezone.utc)
+            )
+
+            db.add(new_message)
+            db.commit()
+            db.refresh(new_message)  # Refresh to get assigned ID
+
+            # Send the message back to the sender as confirmation
+            await websocket.send_json({
+                "sender_id": user_id,
+                "receiver_id": data["receiver_id"],
+                "text": data["text"]
+            })
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected: {user_id}")
 
 @app.post("/users/") # create new endpoint
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
