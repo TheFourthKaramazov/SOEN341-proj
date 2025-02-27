@@ -1,7 +1,8 @@
 
 from contextlib import asynccontextmanager
-from datetime import timezone, datetime
-from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
+from typing import Dict, Union
+
+from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, HTTPException
 from sqlalchemy.orm import Session
 from app.backend.database import SessionLocal, init_db  
 from app.backend.models import User, DirectMessage, Channel, ChannelMessage  
@@ -35,26 +36,27 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
             data = await websocket.receive_json()
             print(f"Received from {user_id}: {data}")
 
+            sender_id = user_id
             receiver_id = data.get("receiver_id")
             message_text = data.get("text")
 
-            new_message = DirectMessage(
-                sender_id = user_id,
-                receiver_id = receiver_id,
-                text = message_text,
-                timestamp = datetime.now(timezone.utc)
-            )
+            store_direct_message(db, sender_id, receiver_id, message_text)
 
-            db.add(new_message)
-            db.commit()
-            db.refresh(new_message)  # Refresh to get assigned ID
+            response_data = {
+                "sender_id": sender_id,
+                "receiver_id": receiver_id,
+                "text": message_text
+            }
 
-            # Send the message back to the sender as confirmation
-            await websocket.send_json({
-                "sender_id": user_id,
-                "receiver_id": data["receiver_id"],
-                "text": data["text"]
-            })
+            if receiver_id in active_connections:
+                await active_connections[receiver_id].send_json(response_data)
+                response_data["status"] = "delivered"
+            else:
+                response_data["status"] = "recipient_offline"
+                response_data["message"] = "Message stored but recipient is offline."
+
+            # Send response back to sender
+            await websocket.send_json(response_data)
     except WebSocketDisconnect:
         print(f"WebSocket disconnected: {user_id}")
 
@@ -77,16 +79,32 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/messages/") # create new endpoint
 def send_message(message: DirectMessageCreate, db: Session = Depends(get_db)):
-    """Sends a direct message between users."""
-    new_message = DirectMessage(
-        sender_id=message.sender_id,
-        receiver_id=message.receiver_id,
-        text=message.text
-    )
+    """Sends a direct message between users by calling store_direct_message"""
+    return store_direct_message(db, message.sender_id, message.receiver_id, message.text)
+
+def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: str):
+    """Stores a direct message in the database and returns the message"""
+
+    # Make sure both the sender and receiver
+    sender = db.query(User).filter_by(id=sender_id).first()
+    if not sender:
+        raise HTTPException(status_code=404, detail=f"Sender with id {sender_id} does not exist")
+
+    receiver = db.query(User).filter_by(id=receiver_id).first()
+    if not receiver:
+        raise HTTPException(status_code=404, detail=f"Receiver with id {receiver_id} does not exist")
+
+    new_message = DirectMessage(sender_id=sender_id, receiver_id=receiver_id, text=text)
     db.add(new_message)
     db.commit()
     db.refresh(new_message)
-    return new_message
+
+    response = {
+        "message": new_message,
+        "status_code": 200
+    }
+
+    return response
 
 @app.post("/channels/") # create new endpoint
 def create_channel(channel: ChannelCreate, db: Session = Depends(get_db)):

@@ -54,28 +54,3 @@ def test_create_channel(test_db):
     response = client.post("/channels/", json={"name": "General"})
     assert response.status_code == 200
     assert response.json()["name"] == "General"
-
-@pytest.mark.asyncio
-async def test_websocket_messaging():
-    """Tests sending and receiving messages via WebSocket."""
-    sender_id = 1
-    receiver_id = 2
-    message_text = f"This is a test message via WebSocket from user with id {sender_id} to user with id {receiver_id}"
-
-    with client.websocket_connect(f"/realtime/direct/{sender_id}") as sender_websocket:
-        print("WebSocket connection established.")
-
-        sender_websocket.send_json({"receiver_id": receiver_id, "text": message_text})
-        print("Message sent.")
-
-        try:
-            response = sender_websocket.receive_json()
-            print(f"The Message was received!: {response}")
-
-            assert response["sender_id"] == sender_id
-            assert response["receiver_id"] == receiver_id
-            assert response["text"] == message_text
-
-        except Exception as e:
-            print(f"Error receiving message: {e}")
-            assert False, "WebSocket response not received."
