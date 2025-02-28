@@ -1,9 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import sessionmaker, Session
 from app.backend.models import User, DirectMessage, Channel, ChannelMessage
-from app.backend.api import app
+from app.backend.api import app, store_direct_message
 from app.backend.database import get_db, SessionLocal
+
+# use the main database
+TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=SessionLocal.kw["bind"])
 
 # use the main database session
 def override_get_db():
@@ -39,22 +42,16 @@ def test_create_channel():
     assert response.status_code == 200
     print("✔️ channel created successfully")
 
-#  TEST SENDING A DIRECT MESSAGE
 def test_send_direct_message():
     """sends a direct message between users"""
-    
-    # retrieve users
-    with SessionLocal() as db:
-        sender = db.query(User).filter_by(username="TestUser").first()
-        receiver = User(username="ReceiverUser", password_hash="receiverpass")
-        db.add(receiver)
-        db.commit()
-        receiver = db.query(User).filter_by(username="ReceiverUser").first()
 
-    # send message
-    response = client.post("/messages/", json={"sender_id": sender.id, "receiver_id": receiver.id, "text": "Hello!"})
-    assert response.status_code == 200
-    print("✔️ direct message sent successfully")
+    sender_id = 2
+    receiver_id = 3
+    message_text = "Direct message test!"
+
+    with TestSessionLocal() as db:
+        response = store_direct_message(db, sender_id, receiver_id, message_text)
+        assert response["status_code"] == 200
 
 # ✅ TEST SENDING A MESSAGE IN A CHANNEL
 def test_send_channel_message():
@@ -81,3 +78,27 @@ def test_retrieve_messages():
     response = client.post("/messages/", json={"sender_id": sender.id, "receiver_id": receiver.id, "text": "Hello!"})
 
 
+@pytest.mark.asyncio
+async def test_websocket_messaging():
+    """Tests sending and receiving messages via WebSocket."""
+    sender_id = 2
+    receiver_id = 3
+    message_text = f"This is a test message via WebSocket from user with id {sender_id} to user with id {receiver_id}"
+
+    with client.websocket_connect(f"/realtime/direct/{sender_id}") as sender_websocket:
+        print("WebSocket connection established.")
+
+        sender_websocket.send_json({"receiver_id": receiver_id, "text": message_text})
+        print("Message sent.")
+
+        try:
+            response = sender_websocket.receive_json()
+            print(f"The Message was received!: {response}")
+
+            assert response["sender_id"] == sender_id
+            assert response["receiver_id"] == receiver_id
+            assert response["text"] == message_text
+
+        except Exception as e:
+            print(f"Error receiving message: {e}")
+            assert False, "WebSocket response not received."

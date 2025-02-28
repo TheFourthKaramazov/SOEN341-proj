@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.backend.base import Base 
@@ -16,6 +16,9 @@ class User(Base):
     # relationships to direct messages sent and received
     sent_messages = relationship("DirectMessage", foreign_keys="DirectMessage.sender_id", back_populates="sender")
     received_messages = relationship("DirectMessage", foreign_keys="DirectMessage.receiver_id", back_populates="receiver")
+
+    # relationship to channels the user has access to
+    channels = relationship("UserChannel", back_populates="user")
 
 
 class DirectMessage(Base):
@@ -37,12 +40,14 @@ class Channel(Base):
     """Database model for storing chat channels."""
     __tablename__ = "channels" # table name
     
-    # channel ID and name and admin only status
+    # channel ID and name, and public/private flag
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
-    admin_only = Column(Boolean, default=False)
+    is_public = Column(Boolean, default=True)  # public by default
     messages = relationship("ChannelMessage", back_populates="channel")
 
+    # relationship to users who have access to the channel
+    users = relationship("UserChannel", back_populates="channel")
 
 class ChannelMessage(Base):
     """Database model for storing messages within chat channels."""
@@ -60,15 +65,14 @@ class ChannelMessage(Base):
     channel = relationship("Channel", back_populates="messages")
     sender = relationship("User")
 
-class ChannelMembership(Base):
-    """Database model for storing members currently within chat channels."""
-    __tablename__ = "channel_membership" # table name
 
-     # user ID, channel ID 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    channel_id = Column(Integer, ForeignKey("channels.id"))
+class UserChannel(Base):
+    """Database model for tracking which users have access to which channels."""
+    __tablename__ = "user_channels"
 
-    # relationships to channel and user
-    user = relationship("User")
-    channel = relationship("Channel")
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    channel_id = Column(Integer, ForeignKey("channels.id"), primary_key=True)
+
+    # relationships to user and channel
+    user = relationship("User", back_populates="channels")
+    channel = relationship("Channel", back_populates="users")

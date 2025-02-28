@@ -1,11 +1,13 @@
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from typing import Dict, Union
+
+from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from app.backend.database import SessionLocal, init_db  
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage, ChannelMembership  
-from app.backend.schemas import UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel
+from app.backend.schemas import ChannelResponse, UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
 
 # create a FastAPI instance
 @asynccontextmanager
@@ -15,6 +17,7 @@ async def lifespan(app: FastAPI):
     yield  # continue serving requests
 
 app = FastAPI(lifespan=lifespan)  # fix: use lifespan instead of `@app.on_event("startup")`
+active_connections = {}
 
 def get_db(): 
     """Provides a database session to API endpoints."""
@@ -23,6 +26,40 @@ def get_db():
         yield db
     finally:
         db.close()
+
+@app.websocket("/realtime/direct/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
+    """WebSocket route for realtime messaging"""
+
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_json()
+            print(f"Received from {user_id}: {data}")
+
+            sender_id = user_id
+            receiver_id = data.get("receiver_id")
+            message_text = data.get("text")
+
+            store_direct_message(db, sender_id, receiver_id, message_text)
+
+            response_data = {
+                "sender_id": sender_id,
+                "receiver_id": receiver_id,
+                "text": message_text
+            }
+
+            if receiver_id in active_connections:
+                await active_connections[receiver_id].send_json(response_data)
+                response_data["status"] = "delivered"
+            else:
+                response_data["status"] = "recipient_offline"
+                response_data["message"] = "Message stored but recipient is offline."
+
+            # Send response back to sender
+            await websocket.send_json(response_data)
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected: {user_id}")
 
 @app.post("/users/") # create new endpoint
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
@@ -43,16 +80,32 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/messages/") # create new endpoint
 def send_message(message: DirectMessageCreate, db: Session = Depends(get_db)):
-    """Sends a direct message between users."""
-    new_message = DirectMessage(
-        sender_id=message.sender_id,
-        receiver_id=message.receiver_id,
-        text=message.text
-    )
+    """Sends a direct message between users by calling store_direct_message"""
+    return store_direct_message(db, message.sender_id, message.receiver_id, message.text)
+
+def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: str):
+    """Stores a direct message in the database and returns the message"""
+
+    # Make sure both the sender and receiver
+    sender = db.query(User).filter_by(id=sender_id).first()
+    if not sender:
+        raise HTTPException(status_code=404, detail=f"Sender with id {sender_id} does not exist")
+
+    receiver = db.query(User).filter_by(id=receiver_id).first()
+    if not receiver:
+        raise HTTPException(status_code=404, detail=f"Receiver with id {receiver_id} does not exist")
+
+    new_message = DirectMessage(sender_id=sender_id, receiver_id=receiver_id, text=text)
     db.add(new_message)
     db.commit()
     db.refresh(new_message)
-    return new_message
+
+    response = {
+        "message": new_message,
+        "status_code": 200
+    }
+
+    return response
 
 @app.post("/channels/") # create new endpoint
 def create_channel(channel: ChannelCreate, db: Session = Depends(get_db)):
@@ -90,45 +143,26 @@ def send_channel_message(message: ChannelMessageCreate, db: Session = Depends(ge
     db.refresh(new_message)
     return new_message
 
-ALGORITHM = "HS256"
-SECRET_KEY = "somesecretkey"
-# Function to verify JWT token
-#def get_current_user(token: str, db=Depends(get_db)):
-#    try:
-#        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#        user_id: str = payload.get("sub")
-#        if user_id is None:
-#            raise HTTPException(status_code=401, detail="Invalid token")
-#    except JWTError:
-#        raise HTTPException(status_code=401, detail="Invalid token")
-#    user = db.query(User).filter(User.username== user_username).first()
-#    if user is None:
-#        raise HTTPException(status_code=401, detail="User not found")
-#    return user
+@app.get("/channels/", response_model=list[ChannelResponse])
+def get_channels(user_id: int = Header(...), db: Session = Depends(get_db)):
+    """
+    Returns all available channels.
+    Only public channels and private channels the user has access to are returned.
+    """
+    # Get public channels
+    public_channels = db.query(Channel).filter(Channel.is_public == True).all()
 
-#API endpoint to join a channel *Not sure if the {channel_id} is correct. 
-#Token represents the User's username.
-@app.post("/join_channel/{channel_id}")
-def join_channel(channel_id: int, user_id: int, db=Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    channel = db.query(Channel).filter(Channel.id == channel_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
-    
-    # Check if user is already a member
-    membership = db.query(ChannelMembership).filter_by(user_id=user.id, channel_id=channel_id).first()
-    if membership:
-        return {"message": "Already a member"}
-    
-    # Check to see if the channel is in Admin Only mode. 
-    if channel.admin_only:
-        raise HTTPException(status_code=403, detail="Cannot join an admin only channel without permission")
-    
-    # Add user to channel
-    new_membership = ChannelMembership(user_id=user.id, channel_id=channel_id)
-    db.add(new_membership)
-    db.commit()
-    
-    return {"message": "Successfully joined the channel"}
+    # Get private channels the user has access to
+    user_private_channels = (
+        db.query(Channel)
+        .join(UserChannel, Channel.id == UserChannel.channel_id)
+        .filter(UserChannel.user_id == user_id)
+        .all()
+    )
+
+    available_channels = public_channels + user_private_channels
+
+    if not available_channels:
+        raise HTTPException(status_code=404, detail="No channels found")
+
+    return available_channels
