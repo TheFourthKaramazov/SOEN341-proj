@@ -22,6 +22,7 @@ class ChannelCreate(BaseModel):
 
     # entry for channel name
     name: str
+    is_public: bool = True
 
 
 class ChannelMessageCreate(BaseModel):
@@ -31,3 +32,12 @@ class ChannelMessageCreate(BaseModel):
     channel_id: int
     sender_id: int
     text: str
+
+
+class ChannelResponse(BaseModel):
+    id: int
+    name: str
+    is_public: bool
+
+    class Config:
+        from_attributes = True  # Enable ORM mode for Pydantic

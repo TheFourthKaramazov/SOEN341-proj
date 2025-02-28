@@ -2,11 +2,11 @@
 from contextlib import asynccontextmanager
 from typing import Dict, Union
 
-from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException
 from sqlalchemy.orm import Session
 from app.backend.database import SessionLocal, init_db  
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage  
-from app.backend.schemas import UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel
+from app.backend.schemas import ChannelResponse, UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
 
 # create a FastAPI instance
 @asynccontextmanager
@@ -141,3 +141,27 @@ def send_channel_message(message: ChannelMessageCreate, db: Session = Depends(ge
     # refresh the message to get updated information
     db.refresh(new_message)
     return new_message
+
+@app.get("/channels/", response_model=list[ChannelResponse])
+def get_channels(user_id: int = Header(...), db: Session = Depends(get_db)):
+    """
+    Returns all available channels.
+    Only public channels and private channels the user has access to are returned.
+    """
+    # Get public channels
+    public_channels = db.query(Channel).filter(Channel.is_public == True).all()
+
+    # Get private channels the user has access to
+    user_private_channels = (
+        db.query(Channel)
+        .join(UserChannel, Channel.id == UserChannel.channel_id)
+        .filter(UserChannel.user_id == user_id)
+        .all()
+    )
+
+    available_channels = public_channels + user_private_channels
+
+    if not available_channels:
+        raise HTTPException(status_code=404, detail="No channels found")
+
+    return available_channels
