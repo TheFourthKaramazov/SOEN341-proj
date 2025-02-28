@@ -22,6 +22,7 @@ class ChannelCreate(BaseModel):
 
     # entry for channel name
     name: str
+    admin_only: bool
 
 
 class ChannelMessageCreate(BaseModel):
@@ -31,3 +32,11 @@ class ChannelMessageCreate(BaseModel):
     channel_id: int
     sender_id: int
     text: str
+
+#should I make a schema for joining a channel? Ask.
+class ChannelMembershipCreate(BaseModel):
+    """Schema for joining a channel. Therefore creating a membership."""
+
+    # entries for user username, channel name
+    user_id: int
+    channel_id: int

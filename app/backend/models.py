@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.backend.base import Base 
@@ -37,9 +37,10 @@ class Channel(Base):
     """Database model for storing chat channels."""
     __tablename__ = "channels" # table name
     
-    # channel ID and name
+    # channel ID and name and admin only status
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
+    admin_only = Column(Boolean, default=False)
     messages = relationship("ChannelMessage", back_populates="channel")
 
 
@@ -58,3 +59,16 @@ class ChannelMessage(Base):
     # relationships to channel and sender
     channel = relationship("Channel", back_populates="messages")
     sender = relationship("User")
+
+class ChannelMembership(Base):
+    """Database model for storing members currently within chat channels."""
+    __tablename__ = "channel_membership" # table name
+
+     # user ID, channel ID 
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    channel_id = Column(Integer, ForeignKey("channels.id"))
+
+    # relationships to channel and user
+    user = relationship("User")
+    channel = relationship("Channel")

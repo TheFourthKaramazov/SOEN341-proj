@@ -2,8 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker, Session
 from app.backend.database import SessionLocal, get_db
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage
-from app.backend.api import app
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage, ChannelMembership
+from app.backend.api import app, ALGORITHM, SECRET_KEY
 from app.backend.database import init_db
 
 # initialize the database before running tests
@@ -51,6 +51,12 @@ def test_send_message(test_db):
 
 def test_create_channel(test_db):
     """test creating a channel"""
-    response = client.post("/channels/", json={"name": "General"})
+    response = client.post("/channels/", json={"name": "General", "admin_only": False})
     assert response.status_code == 200
     assert response.json()["name"] == "General"
+
+def test_join_channel(test_db):
+    """test joining a channel"""
+    response = client.post("/join_channel/1", params={"user_id": 1})
+    assert response.status_code == 200
+    assert response.json() == {"message": "Successfully joined the channel"}
