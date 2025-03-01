@@ -1,0 +1,10 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\app",
+    "\\app\\backend",
+    "\\app\\tests"
+  ],
+  "SelectedNode": "\\app\\tests\\test_api.py",
+  "PreviewInSolutionExplorer": false
+}

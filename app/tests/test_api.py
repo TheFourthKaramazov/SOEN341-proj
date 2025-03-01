@@ -47,10 +47,16 @@ def test_send_message(test_db):
     """test sending a direct message"""
     response = client.post("/messages/", json={"sender_id": 1, "receiver_id": 2, "text": "Hello!"})
     assert response.status_code == 200
-    assert response.json()["text"] == "Hello!"
+    assert response.json()["message"]["text"] == "Hello!"
 
 def test_create_channel(test_db):
     """test creating a channel"""
-    response = client.post("/channels/", json={"name": "General"})
+    response = client.post("/channels/", json={"name": "General", "is_public": True})
     assert response.status_code == 200
     assert response.json()["name"] == "General"
+
+def test_join_channel(test_db):
+    """test joining a channel"""
+    response = client.post("/join_channel/1", params={"user_id": 1})
+    assert response.status_code == 200
+    assert response.json() == {"message": "Successfully joined the channel"}
