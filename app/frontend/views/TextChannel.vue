@@ -1,7 +1,7 @@
 <template>
     <div class="text-channel">
       <h2>Channel: {{ activeChannelName }}</h2>
-      <ChatBox />
+      <ChatBox :channelId="activeChannelId" />
     </div>
   </template>
   
@@ -12,6 +12,9 @@
   export default {
     components: { ChatBox },
     computed: {
+      activeChannelId() {
+        return useChannelStore().activeChannelId;
+      },
       activeChannelName() {
         return useChannelStore().activeChannelName;
       }
