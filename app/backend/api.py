@@ -110,7 +110,7 @@ def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: st
 @app.post("/channels/") # create new endpoint
 def create_channel(channel: ChannelCreate, db: Session = Depends(get_db)):
     """Creates a new chat channel."""
-    new_channel = Channel(name=channel.name, admin_only=channel.admin_only) # create new channel
+    new_channel = Channel(name=channel.name, is_public=channel.is_public) # create new channel
 
     # add channel to database
     db.add(new_channel)
@@ -166,3 +166,28 @@ def get_channels(user_id: int = Header(...), db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No channels found")
 
     return available_channels
+
+@app.post("/join_channel/{channel_id}")
+def join_channel(channel_id: int, user_id: int, db=Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    
+    # Check if user is already a member
+    membership = db.query(UserChannel).filter_by(user_id=user.id, channel_id=channel_id).first()
+    if membership:
+        return {"message": "Already a member"}
+    
+    # Check to see if the channel is in Admin Only mode. 
+    if not channel.is_public:
+        raise HTTPException(status_code=403, detail="Cannot join an admin only channel without permission")
+    
+    # Add user to channel
+    new_membership = UserChannel(user_id=user.id, channel_id=channel_id)
+    db.add(new_membership)
+    db.commit()
+    
+    return {"message": "Successfully joined the channel"}

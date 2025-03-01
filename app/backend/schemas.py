@@ -33,7 +33,6 @@ class ChannelMessageCreate(BaseModel):
     sender_id: int
     text: str
 
-
 class ChannelResponse(BaseModel):
     id: int
     name: str

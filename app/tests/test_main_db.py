@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.backend.database import SessionLocal, init_db
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage, ChannelMembership
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel
 
 # initialize the database without resetting it
 init_db(force_reset=True)
@@ -21,14 +21,14 @@ db.add(message)
 db.commit()
 
 # create a channel
-channel = Channel(name="TestChannel", admin_only=False)
+channel = Channel(name="TestChannel", is_public=True)
 db.add(channel)
 db.commit()
 
 #Have a user join a channel
-channel_membership = ChannelMembership(user_id = user1.id, channel_id = channel.id)
-db.add(channel_membership)
-db.commit();
+#channel_membership = UserChannel(user_id = user1.id, channel_id = channel.id)
+#db.add(channel_membership)
+#db.commit();
 
 # send a message in the channel
 channel_message = ChannelMessage(channel_id=channel.id, sender_id=user1.id, text="Hello in channel")

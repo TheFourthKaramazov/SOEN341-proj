@@ -3,12 +3,8 @@
     "",
     "\\app",
     "\\app\\backend",
-    "\\app\\frontend\\components",
-    "\\app\\frontend\\services",
-    "\\app\\frontend\\store",
-    "\\app\\frontend\\views",
     "\\app\\tests"
   ],
-  "SelectedNode": "\\app\\backend\\api.py",
+  "SelectedNode": "\\app\\tests\\test_api.py",
   "PreviewInSolutionExplorer": false
 }
