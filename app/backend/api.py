@@ -60,6 +60,69 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
     except WebSocketDisconnect:
         print(f"WebSocket disconnected: {user_id}")
 
+@app.websocket("/realtime/channel/{channel_id}/{user_id}")
+async def websocket_channel_endpoint(
+    websocket: WebSocket, channel_id: int, user_id: int, db: Session = Depends(get_db)
+):
+    """WebSocket route for real-time messaging in channels with user authentication."""
+
+    # Validate the user
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        await websocket.close(code=4001)
+        return
+
+    # Validate the channel
+    channel = db.query(Channel).filter_by(id=channel_id).first()
+    if not channel:
+        await websocket.close(code=4002)
+        return
+
+    # Check if the user is in the channel
+    user_in_channel = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
+    if not user_in_channel:
+        await websocket.close(code=4003)
+        return
+
+    await websocket.accept()
+
+    # Track active WebSocket connections per channel
+    if channel_id not in active_connections:
+        active_connections[channel_id] = set()
+    active_connections[channel_id].add(websocket)
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            sender_id = data.get("sender_id")
+            message_text = data.get("text")
+
+            # Validate sender
+            if sender_id != user_id:
+                await websocket.send_json({"error": "Unauthorized sender."})
+                continue
+
+            # Store the message in the database
+            new_message = ChannelMessage(channel_id=channel_id, sender_id=sender_id, text=message_text)
+            db.add(new_message)
+            db.commit()
+            db.refresh(new_message)
+
+            # Prepare and broadcast response
+            response_data = {
+                "channel_id": channel_id,
+                "sender_id": sender_id,
+                "text": message_text
+            }
+
+            for conn in active_connections[channel_id]:
+                await conn.send_json(response_data)
+
+    except WebSocketDisconnect:
+        active_connections[channel_id].remove(websocket)
+        if not active_connections[channel_id]:  # Remove channel if no users are left
+            del active_connections[channel_id]
+
 @app.post("/users/") # create new endpoint
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     """Creates a new user in the database."""

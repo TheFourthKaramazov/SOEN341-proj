@@ -1,7 +1,8 @@
 import pytest
+import time
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker, Session
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel
 from app.backend.api import app, store_direct_message
 from app.backend.database import get_db, SessionLocal
 
@@ -56,7 +57,7 @@ def test_send_direct_message():
 # ✅ TEST SENDING A MESSAGE IN A CHANNEL
 def test_send_channel_message():
     """sends a message in a channel"""
-    
+
     # retrieve channel and user
     with SessionLocal() as db:
         user = db.query(User).filter_by(username="TestUser").first()
@@ -73,7 +74,7 @@ def test_retrieve_messages():
     with SessionLocal() as db:
         sender = db.query(User).filter_by(username="TestUser").first()
         receiver = db.query(User).filter_by(username="ReceiverUser").first()
-    
+
     # get direct messages
     response = client.post("/messages/", json={"sender_id": sender.id, "receiver_id": receiver.id, "text": "Hello!"})
 
@@ -81,8 +82,8 @@ def test_retrieve_messages():
 @pytest.mark.asyncio
 async def test_websocket_messaging():
     """Tests sending and receiving messages via WebSocket."""
-    sender_id = 2
-    receiver_id = 3
+    sender_id = 1
+    receiver_id = 2
     message_text = f"This is a test message via WebSocket from user with id {sender_id} to user with id {receiver_id}"
 
     with client.websocket_connect(f"/realtime/direct/{sender_id}") as sender_websocket:
@@ -102,3 +103,93 @@ async def test_websocket_messaging():
         except Exception as e:
             print(f"Error receiving message: {e}")
             assert False, "WebSocket response not received."
+
+@pytest.mark.asyncio
+async def test_websocket_channel_messaging():
+    """Tests sending and receiving messages via WebSocket in a channel."""
+
+    db = TestSessionLocal()
+
+    try:
+        user1, user2, test_channel = setup_users_and_channel(db)
+
+        verify_user_in_channel(db, user1, test_channel)
+        verify_user_in_channel(db, user2, test_channel)
+
+        print(f"{user1.username} and {user2.username} are in {test_channel.name}")
+
+        send_and_receive_message(user1, user2, test_channel)
+    finally:
+        db.close()
+
+def setup_users_and_channel(db):
+    """Make sure the test users and channel exist, creating them if needed."""
+
+    username_1 = "testuser1"
+    username_2 = "testuser2"
+    test_channel_name = "test_channel"
+
+    # Make sure user1 exists
+    user1 = db.query(User).filter_by(username=username_1).first()
+    if not user1:
+        user1 = User(username=username_1, password_hash="password")
+        db.add(user1)
+        db.commit()
+        db.refresh(user1)
+
+    # Make sure user2 exists
+    user2 = db.query(User).filter_by(username=username_2).first()
+    if not user2:
+        user2 = User(username=username_2, password_hash="password")
+        db.add(user2)
+        db.commit()
+        db.refresh(user2)
+
+    # Make sure channel exists
+    test_channel = db.query(Channel).filter_by(name=test_channel_name).first()
+    if not test_channel:
+        test_channel = Channel(name=test_channel_name, is_public=True)
+        db.add(test_channel)
+        db.commit()
+        db.refresh(test_channel)
+
+    # Add the users to the channel if they're not already in it.
+    if not db.query(UserChannel).filter_by(user_id=user1.id, channel_id=test_channel.id).first():
+        db.add(UserChannel(user_id=user1.id, channel_id=test_channel.id))
+
+    if not db.query(UserChannel).filter_by(user_id=user2.id, channel_id=test_channel.id).first():
+        db.add(UserChannel(user_id=user2.id, channel_id=test_channel.id))
+
+    db.commit()
+
+    return user1, user2, test_channel
+
+
+def verify_user_in_channel(db, user, channel):
+    """Make sure a user is part of the channel."""
+    assert db.query(UserChannel).filter_by(user_id=user.id, channel_id=channel.id).first() is not None, \
+        f"User {user.username} is NOT in channel {channel.name}."
+
+
+def send_and_receive_message(user1, user2, test_channel):
+    """Send and receive the message over WebSocket."""
+
+    with client.websocket_connect(f"/realtime/channel/{test_channel.id}/{user1.id}") as sender_ws, \
+            client.websocket_connect(f"/realtime/channel/{test_channel.id}/{user2.id}") as receiver_ws:
+
+        message_text = f"Hello people of {test_channel.name}!!"
+
+        sender_ws.send_json({"text": message_text, "channel_id": test_channel.id, "sender_id": user1.id})
+        print(f"{user1.username} sent message: {message_text}")
+
+        # We simulate a delay to give time for the other user to receive the message
+        time.sleep(1)
+
+        response = receiver_ws.receive_json()
+        print(f"📥 {user2.username} received message: {response}")
+
+        assert response["text"] == message_text, "Received message does not match the sent message!"
+        assert response["sender_id"] == user1.id, "Sender ID does not match!"
+        assert response["channel_id"] == test_channel.id, "Channel ID does not match!"
+
+        print("WebSocket messaging test passed!")
