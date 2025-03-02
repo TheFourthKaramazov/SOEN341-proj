@@ -12,9 +12,17 @@ export function connectWebSocket(token) {
     return socket;
 }
 
+// for text channels
 export function sendMessage(channelId, message) {
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ channelId, message }));
+    }
+}
+ 
+// for direct messaging
+export function sendDirectMessage(receiver_id, text) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ receiver_id, text }));
     }
 }
 

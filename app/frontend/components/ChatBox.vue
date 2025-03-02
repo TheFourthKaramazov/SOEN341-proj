@@ -61,7 +61,7 @@
     } catch (error) {
       console.error("Failed to load older messages:", error);
     }
-  }
+  },
       sendMessage() {
         if (this.newMessage.trim()) {
           sendMessage(this.activeChannelId, this.newMessage);
