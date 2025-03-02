@@ -85,7 +85,7 @@ async def test_websocket_messaging():
     receiver_id = 3
     message_text = f"This is a test message via WebSocket from user with id {sender_id} to user with id {receiver_id}"
 
-    with client.websocket_connect(f"/realtime/direct/{sender_id}") as sender_websocket:
+    with client.websocket_connect(f"/messages/{sender_id}") as sender_websocket:
         print("WebSocket connection established.")
 
         sender_websocket.send_json({"receiver_id": receiver_id, "text": message_text})
