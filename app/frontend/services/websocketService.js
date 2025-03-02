@@ -1,29 +1,48 @@
 let socket = null;
 
-export function connectWebSocket(token) {
+export function connectWebSocket(userId) {
     if (socket) return socket; 
 
-    socket = new WebSocket(`wss://your-backend-url/ws?token=${token}`);
+    socket = new WebSocket(`ws://localhost:8000/realtime/direct/${userId}`);
 
-    socket.onopen = () => console.log("WebSocket connected");
-    socket.onclose = () => console.log("WebSocket disconnected");
+    socket.onopen = () => console.log(`WebSocket connected as User ${userId}`);
+    socket.onclose = () => {
+        console.warn("WebSocket disconnected. Attempting to reconnect...");
+        setTimeout(() => connectWebSocket(userId), 5000);
+    };
     socket.onerror = (error) => console.error("WebSocket error:", error);
-
-    return socket;
 }
 
-// for text channels
-export function sendMessage(channelId, message) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ channelId, message }));
+export function sendDirectMessage(receiverId, text) {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+        console.error("WebSocket is not open. Cannot send message.");
+        return;
     }
+
+    const message = {
+        receiver_id: receiverId,
+        sender_id: localStorage.getItem("userId"),
+        text: text,
+    };
+
+    console.log("Sending message:", message);
+    socket.send(JSON.stringify(message));
 }
- 
-// for direct messaging
-export function sendDirectMessage(receiver_id, text) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ receiver_id, text }));
+
+export function sendMessageToChannel(channelId, text) {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+        console.error("Channel WebSocket is not open. Cannot send message.");
+        return;
     }
+
+    const message = {
+        channel_id: channelId,
+        sender_id: localStorage.getItem("userId"),
+        text: text,
+    };
+
+    console.log("Sending channel message:", message);
+    socket.send(JSON.stringify(message));
 }
 
 export function onMessage(callback) {
@@ -32,20 +51,17 @@ export function onMessage(callback) {
     }
 }
 
-// for receiving message in a channel
-export function onChannelMessage(callback){
+export function onDirectMessage(callback){
     onMessage((data) => {
-        if (data.channelId) {
+        if (data.receiver_id) {
             callback(data);
-
         }
     });
 }
 
-// for receiving direct messages (user to user)
-export function onDirectMessage(callback){
+export function onChannelMessage(callback){
     onMessage((data) => {
-        if (data.receiver_id) {
+        if (data.channel_id) {
             callback(data);
         }
     });
