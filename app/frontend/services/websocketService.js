@@ -1,3 +1,5 @@
+import axios from "axios";
+
 let socket = null;
 
 export function connectWebSocket(userId) {
@@ -13,7 +15,7 @@ export function connectWebSocket(userId) {
     socket.onerror = (error) => console.error("WebSocket error:", error);
 }
 
-export function sendDirectMessage(receiverId, text) {
+export function sendDirectMessage(receiverId, content) {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
         console.error("WebSocket is not open. Cannot send message.");
         return;
@@ -21,13 +23,14 @@ export function sendDirectMessage(receiverId, text) {
 
     const message = {
         receiver_id: receiverId,
-        sender_id: localStorage.getItem("userId"),
-        text: text,
+        sender_id: "1",  // Spoofed sender ID for testing
+        content: content
     };
 
-    console.log("Sending message:", message);
+    console.log("Sending WebSocket message:", message);
     socket.send(JSON.stringify(message));
 }
+
 
 export function sendMessageToChannel(channelId, text) {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
