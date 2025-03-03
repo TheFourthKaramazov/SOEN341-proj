@@ -9,8 +9,7 @@ from app.backend.database import SessionLocal, init_db
 from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel
 from app.backend.schemas import ChannelResponse, UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
 from fastapi.middleware.cors import CORSMiddleware
-
-
+from fastapi.responses import JSONResponse
 
 # create a FastAPI instance
 @asynccontextmanager
@@ -22,14 +21,23 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)  # fix: use lifespan instead of `@app.on_event("startup")`
 active_connections = {}
 
-# add CORS Middleware to allow frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow frontend URL (change "*" to specific domain in production)
+    allow_origins=["*"],  # Accept requests from anywhere
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],  # Allow ALL HTTP methods
+    allow_headers=["*"],  # Allow ALL headers
+    expose_headers=["*"],  # Expose all headers
 )
+
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    """Forces CORS headers on every response."""
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, DELETE, PUT"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 def get_db(): 
     """Provides a database session to API endpoints."""
@@ -41,37 +49,38 @@ def get_db():
 
 @app.websocket("/realtime/direct/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
-    """WebSocket route for realtime messaging"""
-
+    """Handles real-time messaging and stores messages in the database."""
     await websocket.accept()
+    active_connections[user_id] = websocket  # Store connection
+
     try:
         while True:
             data = await websocket.receive_json()
-            print(f"Received from {user_id}: {data}")
-
             sender_id = user_id
             receiver_id = data.get("receiver_id")
-            message_text = data.get("text")
+            message_text = data.get("content")
 
+            print(f"[DEBUG] Received message: {message_text} from {sender_id} to {receiver_id}")
+
+            # ✅ Save message to database
             store_direct_message(db, sender_id, receiver_id, message_text)
 
             response_data = {
                 "sender_id": sender_id,
                 "receiver_id": receiver_id,
-                "text": message_text
+                "content": message_text
             }
 
+            # ✅ Deliver message if the recipient is online
             if receiver_id in active_connections:
                 await active_connections[receiver_id].send_json(response_data)
-                response_data["status"] = "delivered"
             else:
-                response_data["status"] = "recipient_offline"
-                response_data["message"] = "Message stored but recipient is offline."
+                print(f"[WARNING] User {receiver_id} is not connected.")
 
-            # Send response back to sender
-            await websocket.send_json(response_data)
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected: {user_id}")
+        print(f"[INFO] WebSocket disconnected: {user_id}")
+        del active_connections[user_id]
+
 
 @app.websocket("/realtime/channel/{channel_id}/{user_id}")
 async def websocket_channel_endpoint(
@@ -153,34 +162,10 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-@app.post("/messages/") # create new endpoint
-def send_message(message: DirectMessageCreate, db: Session = Depends(get_db)):
-    """Sends a direct message between users by calling store_direct_message"""
-    return store_direct_message(db, message.sender_id, message.receiver_id, message.text)
-
-def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: str):
-    """Stores a direct message in the database and returns the message"""
-
-    # Make sure both the sender and receiver
-    sender = db.query(User).filter_by(id=sender_id).first()
-    if not sender:
-        raise HTTPException(status_code=404, detail=f"Sender with id {sender_id} does not exist")
-
-    receiver = db.query(User).filter_by(id=receiver_id).first()
-    if not receiver:
-        raise HTTPException(status_code=404, detail=f"Receiver with id {receiver_id} does not exist")
-
-    new_message = DirectMessage(sender_id=sender_id, receiver_id=receiver_id, text=text)
-    db.add(new_message)
-    db.commit()
-    db.refresh(new_message)
-
-    response = {
-        "message": new_message,
-        "status_code": 200
-    }
-
-    return response
+# @app.post("/messages/") # create new endpoint
+# def send_message(message: DirectMessageCreate, db: Session = Depends(get_db)):
+#     """Sends a direct message between users by calling store_direct_message"""
+#     return store_direct_message(db, message.sender_id, message.receiver_id, message.text)
 
 @app.post("/channels/") # create new endpoint
 def create_channel(channel: ChannelCreate, db: Session = Depends(get_db)):
@@ -275,9 +260,9 @@ def get_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return [{"id": user.id, "name": user.username} for user in users]
 
+
 def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: str):
     """Stores a direct message in the database and returns the message"""
-
     sender = db.query(User).filter(User.id == sender_id).first()
     receiver = db.query(User).filter(User.id == receiver_id).first()
 
@@ -285,6 +270,7 @@ def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: st
         raise HTTPException(status_code=404, detail="Sender or receiver not found")
 
     new_message = DirectMessage(sender_id=sender_id, receiver_id=receiver_id, text=text)
+
     db.add(new_message)
     db.commit()
     db.refresh(new_message)
@@ -293,26 +279,51 @@ def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: st
         "id": new_message.id,
         "sender_id": sender_id,
         "receiver_id": receiver_id,
-        "text": new_message.text
+        "text": new_message.text,
+        "timestamp": new_message.timestamp  # Ensure timestamp is returned
     }
+
+@app.options("/messages/{user1_id}/{user2_id}")
+def options_messages(user1_id: int, user2_id: int):
+    """Handles CORS preflight requests for messages endpoint."""
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "http://localhost:5173",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
+
 
 @app.get("/messages/{user1_id}/{user2_id}")
 def get_messages(user1_id: int, user2_id: int, db: Session = Depends(get_db)):
-    """Retrieve stored messages between two users."""
+    """Retrieve stored messages between two users, including sender names."""
     messages = (
         db.query(DirectMessage)
         .filter(
             ((DirectMessage.sender_id == user1_id) & (DirectMessage.receiver_id == user2_id))
             | ((DirectMessage.sender_id == user2_id) & (DirectMessage.receiver_id == user1_id))
         )
-        .order_by(DirectMessage.timestamp.asc())
+        .order_by(DirectMessage.timestamp.asc())  # Sort by time
         .all()
     )
 
+    # Fetch users to map sender IDs to names
+    user_map = {user.id: user.username for user in db.query(User).filter(User.id.in_([user1_id, user2_id])).all()}
+
     return [
-        {"sender_id": msg.sender_id, "receiver_id": msg.receiver_id, "text": msg.text}
+        {
+            "sender_id": msg.sender_id,
+            "receiver_id": msg.receiver_id,
+            "sender_name": user_map.get(msg.sender_id, f"User {msg.sender_id}"),
+            "receiver_name": user_map.get(msg.receiver_id, f"User {msg.receiver_id}"),
+            "text": msg.text,
+            "timestamp": msg.timestamp
+        }
         for msg in messages
     ]
+
 
 @app.websocket("/realtime/channel/{channel_id}/{user_id}")
 async def websocket_channel_endpoint(
