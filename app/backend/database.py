@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from app.backend.base import Base 
 from sqlalchemy.orm import Session
 from app.backend.models import ChannelMessage
+from app.backend.models import UserChannel
 
 
 
@@ -55,3 +56,16 @@ def get_past_messages(db: Session, channel_id: int, skip: int = 0, limit: int = 
         .limit(limit)
         .all()
     )
+   def get_past_messages_secure(db: Session, user_id: int, channel_id: int, skip: int = 0, limit: int = 10):
+    """Fetch messages only if the user belongs to the channel."""
+    
+    # Check if the user is part of the channel
+    is_member = db.query(UserChannel).filter(
+        UserChannel.user_id == user_id,
+        UserChannel.channel_id == channel_id
+    ).first()
+    
+    if not is_member:
+        return []  # Return an empty list or raise an HTTPException 
+
+    return get_past_messages(db, channel_id, skip, limit)
