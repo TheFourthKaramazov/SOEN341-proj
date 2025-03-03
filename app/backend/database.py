@@ -1,6 +1,9 @@
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.backend.base import Base 
+from sqlalchemy.orm import Session
+from app.backend.models import ChannelMessage
+
 
 
 
@@ -41,3 +44,14 @@ def init_db(force_reset=False):
 
     if not tables:
         print("⚠️ ERROR: No tables were created. Something is wrong.")
+
+def get_past_messages(db: Session, channel_id: int, skip: int = 0, limit: int = 10):
+    """Fetch paginated past messages from a given channel, chronological order."""
+    return (
+        db.query(ChannelMessage)
+        .filter(ChannelMessage.channel_id == channel_id)
+        .order_by(ChannelMessage.timestamp.asc())  # Oldest messages first
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
