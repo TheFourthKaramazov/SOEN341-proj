@@ -2,9 +2,12 @@
     <div class="login-overlay">
       <div class="login-box">
         <h2>Login</h2>
-        <input v-model="username" placeholder="Enter your username" />
-        <input v-model="password" type="password" placeholder="Enter your password" />
-        <button @click="loginUser">Login</button>
+        <h4>Enter your username and password to start chatting.</h4>
+        <form @submit.prevent="loginUser"> 
+          <input v-model="username" placeholder="Enter your username" />
+          <input v-model="password" type="password" placeholder="Enter your password" />
+          <button type="submit">Login</button>
+        </form>
       </div>
     </div>
   </template>
@@ -30,24 +33,15 @@
         try {
           const response = await axios.post("http://localhost:8000/login", {
             username: this.username,
-            password: this.password
+            password: this.password,
           });
   
-          if (response.data && response.data.id) {
+          if (response.data?.id && response.data?.username) {
             const userStore = useUserStore();
-            
-            //  FIX: Ensure `response.data` is not undefined
-            if (!response.data.id || !response.data.username) {
-              alert("Login failed: Invalid server response.");
-              return;
-            }
-  
             userStore.setUser(response.data.id, response.data.username);
-            localStorage.setItem("userId", response.data.id);
-            localStorage.setItem("userName", response.data.username);
   
             console.log("User logged in:", response.data.username);
-            this.$emit("loggedIn", response.data); // ✅ FIX: Send valid user data
+            this.$emit("loggedIn", response.data);
           } else {
             alert("Login failed: Invalid response from server.");
           }
@@ -66,7 +60,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
+    background-color: #1e2328;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -74,6 +68,8 @@
   }
   
   .login-box {
+
+    width: 700px;
     background: #2f3542;
     padding: 20px;
     border-radius: 8px;
@@ -83,7 +79,14 @@
   
   h2 {
     color: white;
+    margin-bottom: 20px;
   }
+
+  h4 {
+    color: white;
+    margin-bottom: 20px;
+  }
+
   
   input {
     padding: 10px;

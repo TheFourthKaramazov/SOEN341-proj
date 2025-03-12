@@ -31,6 +31,12 @@ import axios from "axios";
 import { useUserStore } from "../store/userStore";
 
 export default {
+
+  watch: {
+  loggedInUserId(newId) {
+    this.fetchUsers();
+  },
+},
   props: ["selectedChannel", "selectedUser"],
   data() {
     return {
@@ -81,7 +87,6 @@ export default {
 </script>
   
 <style scoped>
-/*  Sidebar is no longer `fixed` */
 .sidebar {
   width: 250px;
   background-color: #2f3542;
@@ -89,11 +94,22 @@ export default {
   padding: 20px;
   overflow-y: auto;
   height: 100vh;
-  flex-shrink: 0; /* Prevents sidebar from shrinking */
+  flex-shrink: 0;
 }
 
 .sidebar h2 {
-  margin-top: 0;
+  background-color: #3e4451;
+  border-radius: 8px;
+
+  padding: 12px 15px;
+  margin-bottom: 15px;
+  text-align: center;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* Specifically target the second h2 (Users) */
+.sidebar h2:nth-of-type(2) {
+  margin-top: 30px; /* Adjust this value as needed */
 }
 
 .sidebar ul {
@@ -108,6 +124,7 @@ export default {
   cursor: pointer;
   border-radius: 5px;
   transition: background-color 0.2s;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
 }
 
 .sidebar li:hover {

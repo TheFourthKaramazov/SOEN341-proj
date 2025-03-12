@@ -34,22 +34,23 @@ def get_db():
     finally:
         db.close()
 
+
 @app.post("/login")
 def login(user: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.username == user.username).first()
+    """Handles login requests and authenticates users."""
+    
+    # Convert username to lowercase before checking in the database
+    existing_user = db.query(User).filter(User.username.ilike(user.username)).first()
 
-    if existing_user:
-        # Check password directly (no hashing)
-        if existing_user.password_hash != user.password:
-            raise HTTPException(status_code=401, detail="Incorrect password")
-        return {"id": existing_user.id, "username": existing_user.username}
+    # If user doesn't exist, return an error (instead of creating a new one)
+    if not existing_user:
+        raise HTTPException(status_code=404, detail="User does not exist. Please check your username.")
 
-    # If user doesn't exist, create new one
-    new_user = User(username=user.username, password_hash=user.password)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return {"id": new_user.id, "username": new_user.username}
+    # Check password directly (no hashing)
+    if existing_user.password_hash != user.password:
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    return {"id": existing_user.id, "username": existing_user.username}
 
 # webSocket for Direct Messages
 @app.websocket("/realtime/direct/{user_id}")
