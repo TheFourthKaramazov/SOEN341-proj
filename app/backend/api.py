@@ -1,5 +1,5 @@
+import json
 from contextlib import asynccontextmanager
-from typing import Dict, Union
 
 from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +16,7 @@ async def lifespan(app: FastAPI):
     yield  
 
 app = FastAPI(lifespan=lifespan) 
-active_connections = {}
+active_connections = {}  # Store connected WebSockets by user ID
 
 # CORS Middleware
 app.add_middleware(
@@ -52,22 +52,36 @@ def login(user: UserCreate, db: Session = Depends(get_db)):
 
     return {"id": existing_user.id, "username": existing_user.username}
 
-# webSocket for Direct Messages
 @app.websocket("/realtime/direct/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
     """Handles real-time direct messaging."""
+    print(f"[DEBUG] WebSocket connection attempt for user {user_id}")
     await websocket.accept()
-    active_connections[user_id] = websocket  
+
+    if user_id not in active_connections:
+        active_connections[user_id] = set()
+    active_connections[user_id].add(websocket)
+
+    print(f"[DEBUG] WebSocket connection established for user {user_id}")
 
     try:
         while True:
-            data = await websocket.receive_json()
-            sender_id = user_id
-            receiver_id = data.get("receiver_id")
-            message_text = data.get("content")
+            data = await websocket.receive_text()  # Receive raw message
+            print(f"[DEBUG] Raw WebSocket message: {data}")
 
-            print(f"[DEBUG] Received message: {message_text} from {sender_id} to {receiver_id}")
+            # Try parsing the message (Handle bad JSON)
+            try:
+                message = json.loads(data)
+                sender_id = user_id
+                receiver_id = message.get("receiver_id")
+                message_text = message.get("content")
+            except json.JSONDecodeError as e:
+                print(f"[ERROR] Invalid JSON received: {data}, Error: {e}")
+                continue  # Skip processing invalid data
 
+            print(f"[DEBUG] Processed message: '{message_text}' from {sender_id} to {receiver_id}")
+
+            # Store the message in the database
             store_direct_message(db, sender_id, receiver_id, message_text)
 
             response_data = {
@@ -76,14 +90,36 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
                 "content": message_text
             }
 
+            print(f"[DEBUG] Sending WebSocket message: {json.dumps(response_data, indent=2)}")
+
+            # ✅ Send to all active connections of the receiver
             if receiver_id in active_connections:
-                await active_connections[receiver_id].send_json(response_data)
-            else:
-                print(f"[WARNING] User {receiver_id} is not connected.")
+                for ws in active_connections[receiver_id]:
+                    try:
+                        await ws.send_json(response_data)
+                        print(f"[DEBUG] Sent message to receiver {receiver_id}: {response_data}")
+
+                    except Exception as e:
+                        print(f"[WARNING] Failed to send message to {receiver_id}: {e}")
+
+            # ✅ Also send message back to sender (so their UI updates immediately)
+            if sender_id in active_connections:
+                for ws in active_connections[sender_id]:
+                    try:
+                        await ws.send_json(response_data)
+                        print(f"[DEBUG] Sent message to sender {sender_id}: {response_data}")
+
+                    except Exception as e:
+                        print(f"[WARNING] Failed to send message to {sender_id}: {e}")
 
     except WebSocketDisconnect:
         print(f"[INFO] WebSocket disconnected: {user_id}")
-        del active_connections[user_id]
+        active_connections[user_id].remove(websocket)
+        if not active_connections[user_id]:  # Remove user if no active connections remain
+            del active_connections[user_id]
+
+    except Exception as e:
+        print(f"[ERROR] WebSocket crashed: {e}")
 
 # webSocket for Channels
 @app.websocket("/realtime/channel/{channel_id}/{user_id}")

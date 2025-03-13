@@ -31,6 +31,23 @@ export const useDirectMessageStore = defineStore("directMessage", {
             }
             this.messages[receiverId].push(message);
         },
+        receiveMessage(message) {
+            console.log("[DEBUG] Storing received message:", message);
+
+            // Ensure this.messages is an object
+            if (!this.messages || typeof this.messages !== "object") {
+                this.messages = {};
+            }
+
+            // Ensure this.messages[message.sender_id] is an array
+            if (!Array.isArray(this.messages[message.sender_id])) {
+                this.messages[message.sender_id] = [];
+            }
+
+            // Now, safely push the new message
+            this.messages[message.sender_id].push(message);
+            console.log("[DEBUG] Updated messages state:", this.messages);
+        },
         subscribeToDirectMessages() {
             onDirectMessage((message) => {
                 const { receiver_id, text } = message;

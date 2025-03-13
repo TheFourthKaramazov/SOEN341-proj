@@ -6,7 +6,7 @@
           :key="index" 
           :class="messageClasses(msg)">
           <strong>
-            {{ Number(msg.senderId) === Number(userId) ? "Me" : msg.senderName || `User ${msg.senderId}` }}:
+            {{ Number(msg.senderId) === Number(userId) ? "Me" : (msg.senderName ? msg.senderName : `User ${msg.senderId}`) }}:
           </strong>
           {{ msg.content }}
         </div>
@@ -25,132 +25,177 @@
   </template>
   
   <script>
-  import axios from "axios";
-  import { sendDirectMessage, sendMessageToChannel, connectWebSocket, onDirectMessage, onChannelMessage } from '../services/websocketService';
+  import { ref, computed, watch, onMounted, nextTick } from "vue";
   import { useUserStore } from "../store/userStore";
+  import { sendDirectMessage, sendMessageToChannel, connectWebSocket, onDirectMessage, onChannelMessage } from '../services/websocketService';
+  import { useDirectMessageStore } from "../store/directMessageStore";
 
   export default {
     props: ["selectedUser", "selectedChannel"],
-    data() {
-      return {
-        userId: localStorage.getItem("userId") || "1",
-        messages: [],
-        newMessage: "",
-      };
-    },
-    computed: {
-        users() {
-            const userStore = useUserStore();
-            return userStore.users;
-        },
-        messageClasses() {
-          return (msg) => {
-              console.log(`[DEBUG] Checking class for message:`, msg);
-              console.log(`[DEBUG] userId (as number):`, Number(this.userId));
-              console.log(`[DEBUG] msg.senderId (as number):`, Number(msg.senderId));
+    setup(props) {
+      // ✅ Reactive state variables
+      const userId = ref(localStorage.getItem("userId") || "1");
+      const newMessage = ref("");
 
-              return {
-                  'my-message': Number(msg.senderId) === Number(this.userId),
-                  'other-message': Number(msg.senderId) !== Number(this.userId)
-              };
-          };
-      }
-    },
-    watch: {
-      selectedUser(newUser) {
-        if (newUser) {
-          console.log(`Switched to user: ${newUser.id}`);
-          this.fetchMessages(newUser.id, "user");
-        }
-      },
-      selectedChannel(newChannel) {
-        if (newChannel) {
-          console.log(`Switched to channel: ${newChannel.id}`);
-          this.fetchMessages(newChannel.id, "channel");
-        }
-      }
-    },
-    async mounted() {
-      if (!this.userId) {
-        console.error("No user ID found in localStorage. Cannot establish WebSocket.");
-        return;
-      }
-      connectWebSocket(this.userId);
-      onDirectMessage(this.receiveMessage);
-      onChannelMessage(this.receiveChannelMessage);
+      // ✅ Get users from store
+      const userStore = useUserStore();
+      const users = computed(() => userStore.users);
 
-      if (this.selectedUser) {
-          this.fetchMessages(this.selectedUser.id, "user");
-      }
-    },
-    methods: {
-      async fetchMessages(id, type) {
+      // ✅ Get messages from the store reactively
+      const messageStore = useDirectMessageStore();
+      const messages = computed(() => {
+        if (props.selectedUser) {
+          return messageStore.messages[props.selectedUser.id] || [];
+        }
+        return [];
+      });
+
+
+      // ✅ Reactive message class assignment
+      const messageClasses = (msg) => ({
+        "my-message": Number(msg.senderId) === Number(userId.value),
+        "other-message": Number(msg.senderId) !== Number(userId.value),
+      });
+
+      // ✅ Fetch messages for selected user/channel
+      async function fetchMessages(id, type) {
         try {
-          this.messages = [];
-          let url = type === "user"
-            ? `http://localhost:8000/messages/${this.userId}/${id}`
-            : `http://localhost:8000/channel-messages/${id}`;
-  
+          const url =
+            type === "user"
+              ? `http://localhost:8000/messages/${userId.value}/${id}`
+              : `http://localhost:8000/channel-messages/${id}`;
+
           console.log(`Fetching messages for ${type}:`, url);
-  
-          const response = await axios.get(url);
-          this.messages = response.data.map(msg => ({
+
+          const response = await fetch(url);
+          const data = await response.json();
+
+          messageStore.messages[id] = data.map((msg) => ({
             senderId: msg.sender_id,
             receiverId: msg.receiver_id,
             senderName: msg.sender_name,
             content: msg.text,
-            timestamp: msg.timestamp
+            timestamp: msg.timestamp,
           }));
+
+          console.log("[DEBUG] Updated messages after fetch:", messageStore.messages[id]);
         } catch (error) {
           console.error("Error fetching messages:", error);
         }
-      },
-      sendMessage() {
-        if (!this.newMessage.trim()) {
+      }
+
+      // ✅ Send message function
+      function sendMessage() {
+        if (!newMessage.value.trim()) {
           console.error("Cannot send empty message!");
           return;
         }
-  
-        if (this.selectedUser) {
-          sendDirectMessage(this.selectedUser.id, this.newMessage, this.userId);
-          this.messages.push({
-            senderId: this.userId,
-            receiverId: this.selectedUser.id,
-            content: this.newMessage,
-          });
-        } else if (this.selectedChannel) {
-          sendMessageToChannel(this.selectedChannel.id, this.newMessage, this.userId);
-          this.messages.push({
-            senderId: this.userId,
-            channelId: this.selectedChannel.id,
-            content: this.newMessage,
-          });
+
+        const messageData = {
+          senderId: userId.value,
+          receiverId: props.selectedUser?.id,
+          content: newMessage.value,
+        };
+
+        if (props.selectedUser) {
+          sendDirectMessage(props.selectedUser.id, newMessage.value, userId.value);
+
+          if (!messageStore.messages[props.selectedUser.id]) {
+            messageStore.messages[props.selectedUser.id] = [];
+          }
+
+          messageStore.messages[props.selectedUser.id].push(messageData);
         }
-  
-        this.newMessage = "";
-        this.scrollToBottom();
-      },
-      receiveMessage(message) {
-        if (message.receiver_id === this.userId && message.senderId === this.selectedUser?.id) {
-          this.messages.push(message);
-          this.scrollToBottom();
+
+        newMessage.value = "";
+        scrollToBottom();
+      }
+
+      // ✅ Handle incoming messages via WebSocket
+      async function receiveMessage(message) {
+        console.log("[DEBUG] Received WebSocket message in ChatBox:", message);
+
+        let senderName = `User ${message.sender_id}`; // Default if fetch fails
+
+        try {
+            const response = await fetch(`http://localhost:8000/users/${message.sender_id}`);
+            const senderData = await response.json();
+            senderName = senderData.name || senderName;  // 🛠️ Use fetched name
+        } catch (error) {
+            console.error("[ERROR] Failed to fetch sender name:", error);
         }
-      },
-      receiveChannelMessage(message) {
-        if (this.selectedChannel && message.channel_id === this.selectedChannel.id) {
-          this.messages.push(message);
-          this.scrollToBottom();
+
+        // ✅ Add senderName before pushing message to store
+        messageStore.messages.push({
+            ...message,
+            senderName: senderName,
+        });
+
+        console.log("[DEBUG] Updated messages array:", messageStore.messages);
+        scrollToBottom();
+    }
+
+
+
+      function receiveChannelMessage(message) {
+        if (props.selectedChannel && message.channel_id === props.selectedChannel.id) {
+          messageStore.messages.push(message);
+          scrollToBottom();
         }
-      },
-      scrollToBottom() {
-        this.$nextTick(() => {
-          const container = this.$refs.messageContainer;
+      }
+
+      // ✅ Auto-scroll to bottom when new messages arrive
+      function scrollToBottom() {
+        nextTick(() => {
+          const container = document.querySelector(".messages");
           if (container) container.scrollTop = container.scrollHeight;
         });
       }
-    }
+
+      // ✅ Watch for user/channel changes & fetch messages
+      watch(() => props.selectedUser, (newUser) => {
+        if (newUser) {
+          console.log(`Switched to user: ${newUser.id}`);
+          fetchMessages(newUser.id, "user");
+        }
+      });
+
+      watch(() => props.selectedChannel, (newChannel) => {
+        if (newChannel) {
+          console.log(`Switched to channel: ${newChannel.id}`);
+          fetchMessages(newChannel.id, "channel");
+        }
+      });
+
+      // ✅ WebSocket setup on mount
+      onMounted(() => {
+        console.log("[DEBUG] Connecting WebSocket...");
+        connectWebSocket(userId.value);
+        onDirectMessage(receiveMessage);
+        onChannelMessage(receiveChannelMessage);
+
+        if (props.selectedUser) {
+          fetchMessages(props.selectedUser.id, "user");
+        } else if (props.selectedChannel) {
+          fetchMessages(props.selectedChannel.id, "channel");
+        }
+      });
+
+      return {
+        userId,
+        messages,
+        newMessage,
+        users,
+        messageClasses,
+        sendMessage,
+        receiveMessage,
+        receiveChannelMessage,
+        scrollToBottom,
+      };
+    },
   };
   </script>
+  
 <style>
 /* Chatbox container */
     .chat-container {
