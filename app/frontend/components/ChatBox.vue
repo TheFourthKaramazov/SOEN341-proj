@@ -4,10 +4,9 @@
         <div 
           v-for="(msg, index) in messages" 
           :key="index" 
-          :class="{ 'my-message': msg.senderId === userId, 'other-message': msg.senderId !== userId }"
-        >
+          :class="messageClasses(msg)">
           <strong>
-            {{ msg.senderId === userId ? "Me" : msg.senderName || `User ${msg.senderId}` }}:
+            {{ Number(msg.senderId) === Number(userId) ? "Me" : msg.senderName || `User ${msg.senderId}` }}:
           </strong>
           {{ msg.content }}
         </div>
@@ -43,7 +42,19 @@
         users() {
             const userStore = useUserStore();
             return userStore.users;
-        }
+        },
+        messageClasses() {
+          return (msg) => {
+              console.log(`[DEBUG] Checking class for message:`, msg);
+              console.log(`[DEBUG] userId (as number):`, Number(this.userId));
+              console.log(`[DEBUG] msg.senderId (as number):`, Number(msg.senderId));
+
+              return {
+                  'my-message': Number(msg.senderId) === Number(this.userId),
+                  'other-message': Number(msg.senderId) !== Number(this.userId)
+              };
+          };
+      }
     },
     watch: {
       selectedUser(newUser) {
