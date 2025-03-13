@@ -28,16 +28,22 @@
   <script>
   import axios from "axios";
   import { sendDirectMessage, sendMessageToChannel, connectWebSocket, onDirectMessage, onChannelMessage } from '../services/websocketService';
-  
+  import { useUserStore } from "../store/userStore";
+
   export default {
     props: ["selectedUser", "selectedChannel"],
     data() {
       return {
         userId: localStorage.getItem("userId") || "1",
-        users: [],
         messages: [],
         newMessage: "",
       };
+    },
+    computed: {
+        users() {
+            const userStore = useUserStore();
+            return userStore.users;
+        }
     },
     watch: {
       selectedUser(newUser) {
@@ -58,22 +64,15 @@
         console.error("No user ID found in localStorage. Cannot establish WebSocket.");
         return;
       }
-  
-      await this.fetchUsers();
       connectWebSocket(this.userId);
       onDirectMessage(this.receiveMessage);
       onChannelMessage(this.receiveChannelMessage);
+
+      if (this.selectedUser) {
+          this.fetchMessages(this.selectedUser.id, "user");
+      }
     },
     methods: {
-      async fetchUsers() {
-        try {
-          const response = await axios.get("http://localhost:8000/users");
-          this.users = response.data;
-          console.log("Fetched users:", this.users);
-        } catch (error) {
-          console.error("Error fetching users:", error);
-        }
-      },
       async fetchMessages(id, type) {
         try {
           this.messages = [];
