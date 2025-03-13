@@ -31,6 +31,13 @@ export const useDirectMessageStore = defineStore("directMessage", {
             }
             this.messages[receiverId].push(message);
         },
+        receiveMessage(message) {
+            if (!this.messages[message.sender_id]) {
+                this.messages[message.sender_id] = [];
+            }
+
+            this.messages[message.sender_id].push(message);
+        },
         subscribeToDirectMessages() {
             onDirectMessage((message) => {
                 const { receiver_id, text } = message;

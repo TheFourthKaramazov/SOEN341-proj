@@ -1,17 +1,42 @@
+import { useDirectMessageStore } from "../store/directMessageStore";
+
 let socket = null;
 
 export function connectWebSocket(userId) {
-    if (socket && socket.readyState === WebSocket.OPEN) return socket;
+    if (socket) {
+        console.warn("[WARNING] WebSocket already exists, reattaching event listeners.");
+    } else {
+        const wsUrl = `ws://localhost:8000/realtime/direct/${userId}`;
+        socket = new WebSocket(wsUrl);
 
-    socket = new WebSocket(`ws://localhost:8000/realtime/direct/${userId}`);
+        socket.onopen = () => {
+            console.log("WebSocket connected:", wsUrl);
+        };
 
-    socket.onopen = () => console.log(`WebSocket connected as User ${userId}`);
-    socket.onclose = () => {
-        console.warn("WebSocket disconnected. Attempting reconnect...");
-        setTimeout(() => connectWebSocket(userId), 5000);
-    };
-    socket.onerror = (error) => console.error("WebSocket error:", error);
+        socket.onclose = (event) => console.log(`[INFO] WebSocket disconnected. Code: ${event.code}`);
+        socket.onerror = (error) => console.error("[ERROR] WebSocket encountered an error:", error);
+    }
+
+    const messageStore = useDirectMessageStore(); // ✅ Ensure store is initialized
+
+    socket.addEventListener("message", (event) => {
+        try {
+            const message = JSON.parse(event.data);
+
+            if (message.channel_id) {
+                callback(message);
+                return;
+            }
+
+            messageStore.receiveMessage(message); // ✅ Correctly call the function
+        } catch (error) {
+            console.error("[ERROR] Failed to parse WebSocket message:", error);
+        }
+    });
+
+    window.socket = socket; // ✅ Store for debugging
 }
+
 
 export function sendDirectMessage(receiverId, content, senderId) {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -25,7 +50,13 @@ export function sendDirectMessage(receiverId, content, senderId) {
         content: content
     };
 
-    socket.send(JSON.stringify(message));
+    try {
+        socket.send(JSON.stringify(message));
+    } catch (error) {
+        console.error("[ERROR] Failed to send WebSocket message:", error);
+    }
+
+    window.sendDirectMessage = sendDirectMessage;
 }
 
 export function sendMessageToChannel(channelId, text, senderId) {
@@ -44,14 +75,19 @@ export function sendMessageToChannel(channelId, text, senderId) {
 }
 
 export function onDirectMessage(callback) {
-    if (socket) {
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.receiver_id) {
-                callback(data);
-            }
-        };
+    if (!socket) {
+        console.error("[ERROR] WebSocket not initialized.");
+        return;
     }
+
+    socket.onmessage = (event) => {
+        try {
+            const message = JSON.parse(event.data);
+            callback(message);
+        } catch (error) {
+            console.error("[ERROR] Failed to parse WebSocket message:", error);
+        }
+    };
 }
 
 export function onChannelMessage(callback) {
@@ -64,3 +100,20 @@ export function onChannelMessage(callback) {
         }
     };
 }
+
+window.connectWebSocket = connectWebSocket;
+
+window.checkWebSocketState = function () {
+    if (!socket) {
+        console.error("[ERROR] WebSocket is not initialized.");
+        return;
+    }
+
+    /*
+        0 = CONNECTING
+        1 = OPEN
+        2 = CLOSING
+        3 = CLOSED
+    */
+};
+
