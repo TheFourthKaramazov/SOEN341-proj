@@ -10,7 +10,7 @@ export function connectWebSocket(userId) {
         socket = new WebSocket(wsUrl);
 
         socket.onopen = () => {
-            console.log("[DEBUG] WebSocket connected:", wsUrl);
+            console.log("WebSocket connected:", wsUrl);
         };
 
         socket.onclose = (event) => console.log(`[INFO] WebSocket disconnected. Code: ${event.code}`);
@@ -20,19 +20,14 @@ export function connectWebSocket(userId) {
     const messageStore = useDirectMessageStore(); // ✅ Ensure store is initialized
 
     socket.addEventListener("message", (event) => {
-        console.log("[DEBUG] Raw WebSocket message received:", event.data);
-
         try {
             const message = JSON.parse(event.data);
-            console.log("[DEBUG] Parsed WebSocket message:", message);
 
             if (message.channel_id) {
-                console.log("[DEBUG] Processing channel message...");
                 callback(message);
                 return;
             }
 
-            console.log("[DEBUG] Processing direct message...");
             messageStore.receiveMessage(message); // ✅ Correctly call the function
         } catch (error) {
             console.error("[ERROR] Failed to parse WebSocket message:", error);
@@ -55,13 +50,13 @@ export function sendDirectMessage(receiverId, content, senderId) {
         content: content
     };
 
-    console.log("[DEBUG] Sending WebSocket message:", message);
-
     try {
         socket.send(JSON.stringify(message));
     } catch (error) {
         console.error("[ERROR] Failed to send WebSocket message:", error);
     }
+
+    window.sendDirectMessage = sendDirectMessage;
 }
 
 export function sendMessageToChannel(channelId, text, senderId) {
@@ -85,13 +80,9 @@ export function onDirectMessage(callback) {
         return;
     }
 
-    console.log("[DEBUG] Subscribing to WebSocket messages...");
-
     socket.onmessage = (event) => {
-        console.log("[DEBUG] Raw WebSocket message received:", event.data);
         try {
             const message = JSON.parse(event.data);
-            console.log("[DEBUG] Parsed WebSocket message:", message);
             callback(message);
         } catch (error) {
             console.error("[ERROR] Failed to parse WebSocket message:", error);
@@ -118,7 +109,6 @@ window.checkWebSocketState = function () {
         return;
     }
 
-    console.log(`[DEBUG] WebSocket state: ${socket.readyState}`);
     /*
         0 = CONNECTING
         1 = OPEN

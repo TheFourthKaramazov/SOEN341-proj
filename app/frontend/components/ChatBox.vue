@@ -6,7 +6,7 @@
           :key="index" 
           :class="messageClasses(msg)">
           <strong>
-            {{ Number(msg.senderId) === Number(userId) ? "Me" : (msg.senderName ? msg.senderName : `User ${msg.senderId}`) }}:
+            {{ Number(msg.senderId) === Number(userId) ? "Me" : getOtherUsername()}}:
           </strong>
           {{ msg.content }}
         </div>
@@ -33,15 +33,12 @@
   export default {
     props: ["selectedUser", "selectedChannel"],
     setup(props) {
-      // ✅ Reactive state variables
       const userId = ref(localStorage.getItem("userId") || "1");
       const newMessage = ref("");
 
-      // ✅ Get users from store
       const userStore = useUserStore();
       const users = computed(() => userStore.users);
 
-      // ✅ Get messages from the store reactively
       const messageStore = useDirectMessageStore();
       const messages = computed(() => {
         if (props.selectedUser) {
@@ -78,13 +75,11 @@
             timestamp: msg.timestamp,
           }));
 
-          console.log("[DEBUG] Updated messages after fetch:", messageStore.messages[id]);
         } catch (error) {
           console.error("Error fetching messages:", error);
         }
       }
 
-      // ✅ Send message function
       function sendMessage() {
         if (!newMessage.value.trim()) {
           console.error("Cannot send empty message!");
@@ -111,32 +106,6 @@
         scrollToBottom();
       }
 
-      // ✅ Handle incoming messages via WebSocket
-      async function receiveMessage(message) {
-        console.log("[DEBUG] Received WebSocket message in ChatBox:", message);
-
-        let senderName = `User ${message.sender_id}`; // Default if fetch fails
-
-        try {
-            const response = await fetch(`http://localhost:8000/users/${message.sender_id}`);
-            const senderData = await response.json();
-            senderName = senderData.name || senderName;  // 🛠️ Use fetched name
-        } catch (error) {
-            console.error("[ERROR] Failed to fetch sender name:", error);
-        }
-
-        // ✅ Add senderName before pushing message to store
-        messageStore.messages.push({
-            ...message,
-            senderName: senderName,
-        });
-
-        console.log("[DEBUG] Updated messages array:", messageStore.messages);
-        scrollToBottom();
-    }
-
-
-
       function receiveChannelMessage(message) {
         if (props.selectedChannel && message.channel_id === props.selectedChannel.id) {
           messageStore.messages.push(message);
@@ -144,15 +113,19 @@
         }
       }
 
-      // ✅ Auto-scroll to bottom when new messages arrive
+      function getOtherUsername() {
+        return props.selectedUser?.name || "Other user";
+      }
+        
       function scrollToBottom() {
         nextTick(() => {
           const container = document.querySelector(".messages");
-          if (container) container.scrollTop = container.scrollHeight;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
         });
       }
 
-      // ✅ Watch for user/channel changes & fetch messages
       watch(() => props.selectedUser, (newUser) => {
         if (newUser) {
           console.log(`Switched to user: ${newUser.id}`);
@@ -167,11 +140,12 @@
         }
       });
 
-      // ✅ WebSocket setup on mount
+      watch(messages, (newMessages) => {
+          scrollToBottom();
+      }, { deep: true });
+
       onMounted(() => {
-        console.log("[DEBUG] Connecting WebSocket...");
         connectWebSocket(userId.value);
-        onDirectMessage(receiveMessage);
         onChannelMessage(receiveChannelMessage);
 
         if (props.selectedUser) {
@@ -188,8 +162,8 @@
         users,
         messageClasses,
         sendMessage,
-        receiveMessage,
         receiveChannelMessage,
+        getOtherUsername,
         scrollToBottom,
       };
     },
