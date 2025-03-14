@@ -11,7 +11,10 @@
           {{ channel.name }}
         </li>
       </ul>
-  
+      
+      <!-- Create Channel button only visible to admins -->
+      <button v-if="isAdmin" @click="goToCreateChannel" class="admin-button"> Create Channel </button>
+
       <h2>Users</h2>
       <ul>
         <li
@@ -29,6 +32,8 @@
 <script>
 import axios from "axios";
 import { useUserStore } from "../store/userStore";
+import { computed } from "vue";
+import { useRouter } from "vue-router";
 
 export default {
 
@@ -38,6 +43,23 @@ export default {
   },
 },
   props: ["selectedChannel", "selectedUser"],
+  setup() {
+    const router = useRouter();
+    const userStore = useUserStore();
+    const isAdmin = computed(() => userStore.isAdmin);
+    
+    const goToCreateChannel = () => {
+      console.log("Navigating to /create-channel");
+      router.push("/create-channel");
+    };
+
+    return {
+      userStore,
+      isAdmin,
+      goToCreateChannel,
+    };
+  },
+
   data() {
     return {
       users: [],
@@ -66,16 +88,16 @@ export default {
       }
     },
     async fetchChannels() {
-  try {
-    const userId = this.loggedInUserId;
-    const response = await axios.get("http://localhost:8000/channels/", {
-      headers: { "user-id": userId },
-    });
-    this.channels = response.data;
-  } catch (error) {
-    console.error("Error fetching channels:", error);
-  }
-},
+      try {
+        const userId = this.loggedInUserId;
+        const response = await axios.get("http://localhost:8000/channels/", {
+          headers: { "user-id": userId },
+        });
+        this.channels = response.data;
+      } catch (error) {
+        console.error("Error fetching channels:", error);
+      }
+    },
     selectChannel(channel) {
       this.$emit("selectChannel", channel);
     },
@@ -133,5 +155,21 @@ export default {
 
 .sidebar li.highlighted {
   background-color: #4e5b67;
+}
+
+.admin-button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  background-color: #1db954;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.admin-button:hover {
+  background-color: #169c46;
 }
 </style>

@@ -1,5 +1,6 @@
 import json
 from contextlib import asynccontextmanager
+from urllib import request
 
 from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -231,14 +232,15 @@ def get_channel_messages(channel_id: int, db: Session = Depends(get_db)):
 def create_channel(channel: ChannelCreate, db: Session = Depends(get_db), user_id: int = Header(None)):
     current_user = db.query(User).filter(User.id == user_id).first()
 
+    print(f"Received headers: {request.headers}")
     # check if user exists
     if not current_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    #check if user has admin role
+    #check if user has admin role    
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Only admins can create channels")
-    
+
     new_channel = Channel(name=channel.name, is_public=channel.is_public)
     db.add(new_channel)
     db.commit()

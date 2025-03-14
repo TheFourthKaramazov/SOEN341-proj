@@ -37,10 +37,11 @@
           });
   
           if (response.data?.id && response.data?.username) {
+            console.log("Login response:", response.data);
             const userStore = useUserStore();
-            userStore.setUser(response.data.id, response.data.username);
+            userStore.setUser(response.data.id, response.data.username, response.data.is_admin);
   
-            console.log("User logged in:", response.data.username);
+            console.log("User logged in:", response.data.username, "isAdmin:", response.data.is_admin);
             this.$emit("loggedIn", response.data);
           } else {
             alert("Login failed: Invalid response from server.");
