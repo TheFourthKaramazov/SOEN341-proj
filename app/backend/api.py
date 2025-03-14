@@ -50,7 +50,7 @@ def login(user: UserCreate, db: Session = Depends(get_db)):
     if existing_user.password_hash != user.password:
         raise HTTPException(status_code=401, detail="Incorrect password")
 
-    return {"id": existing_user.id, "username": existing_user.username}
+    return {"id": existing_user.id, "username": existing_user.username, "is_admin": existing_user.is_admin}
 
 @app.websocket("/realtime/direct/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
@@ -228,7 +228,17 @@ def get_channel_messages(channel_id: int, db: Session = Depends(get_db)):
 
 # create Channel
 @app.post("/channels/")
-def create_channel(channel: ChannelCreate, db: Session = Depends(get_db)):
+def create_channel(channel: ChannelCreate, db: Session = Depends(get_db), user_id: int = Header(None)):
+    current_user = db.query(User).filter(User.id == user_id).first()
+
+    # check if user exists
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    #check if user has admin role
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can create channels")
+    
     new_channel = Channel(name=channel.name, is_public=channel.is_public)
     db.add(new_channel)
     db.commit()
