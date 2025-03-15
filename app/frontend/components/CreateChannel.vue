@@ -18,24 +18,23 @@
   <script>
   import axios from "axios";
   import { useUserStore } from "../store/userStore";
-  import { useRouter } from "vue-router"; // Import useRouter
+  import { useRouter } from "vue-router";
+  import { ref } from "vue";
   
   export default {
-    data() {
-      return {
-        channelName: "",
-        isPublic: true,
-      };
-    },
-    methods: {
-      async createChannel() {
+    setup() {
+      const router = useRouter();
+      const userStore = useUserStore();
+      const channelName = ref("");
+      const isPublic = ref(true);
+  
+      const createChannel = async () => {
         try {
-          const userStore = useUserStore();
           const response = await axios.post(
             "http://localhost:8000/channels/",
             {
-              name: this.channelName,
-              is_public: this.isPublic,
+              name: channelName.value,
+              is_public: isPublic.value,
             },
             {
               headers: {
@@ -44,16 +43,23 @@
             }
           );
           console.log("Channel created:", response.data);
-          this.goBack();
+          goBack();
         } catch (error) {
           console.error("Failed to create channel:", error.response?.data || error);
           alert("Failed to create channel: " + (error.response?.data.detail || "Unknown error"));
         }
-      },
-      goBack() {
-        const router = useRouter();
-        router.push("/"); // Navigate back to the homepage
-      },
+      };
+  
+      const goBack = () => {
+        router.push("/");
+      };
+  
+      return {
+        channelName,
+        isPublic,
+        createChannel,
+        goBack,
+      };
     },
   };
   </script>

@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from urllib import request
 
@@ -228,24 +229,34 @@ def get_channel_messages(channel_id: int, db: Session = Depends(get_db)):
     return [{"sender_id": msg.sender_id, "text": msg.text} for msg in messages]
 
 # create Channel
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 @app.post("/channels/")
 def create_channel(channel: ChannelCreate, db: Session = Depends(get_db), user_id: int = Header(None)):
-    current_user = db.query(User).filter(User.id == user_id).first()
+    logger.debug(f"Received request to create channel. User ID: {user_id}")
+    
+    try:
+        current_user = db.query(User).filter(User.id == user_id).first()
+        if not current_user:
+            logger.error(f"User not found: {user_id}")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        if not current_user.is_admin:
+            logger.error(f"User is not an admin: {user_id}")
+            raise HTTPException(status_code=403, detail="Only admins can create channels")
 
-    print(f"Received headers: {request.headers}")
-    # check if user exists
-    if not current_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    #check if user has admin role    
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Only admins can create channels")
-
-    new_channel = Channel(name=channel.name, is_public=channel.is_public)
-    db.add(new_channel)
-    db.commit()
-    db.refresh(new_channel)
-    return new_channel
+        new_channel = Channel(name=channel.name, is_public=channel.is_public)
+        db.add(new_channel)
+        db.commit()
+        db.refresh(new_channel)
+        logger.debug(f"Channel created successfully: {new_channel}")
+        return new_channel
+    
+    except Exception as e:
+        logger.error(f"Error creating channel: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    
 
 # join Channel
 @app.post("/join_channel/{channel_id}")
