@@ -2,12 +2,9 @@
     <div class="create-channel-overlay">
       <div class="create-channel-box">
         <h2>Create Channel</h2>
-        <h4>Enter the name of your new channel and choose its visibility.</h4>
+        <h4>Enter the name of your new channel.</h4>
         <form @submit.prevent="createChannel">
           <input v-model="channelName" placeholder="Channel Name" required />
-          <label>
-            <input type="checkbox" v-model="isPublic" /> Public Channel
-          </label>
           <button type="submit">Create</button>
         </form>
         <button @click="goBack" class="return-button">Return to Homepage</button>
@@ -26,15 +23,14 @@
       const router = useRouter();
       const userStore = useUserStore();
       const channelName = ref("");
-      const isPublic = ref(true);
   
       const createChannel = async () => {
         try {
           const response = await axios.post(
             "http://localhost:8000/channels/",
             {
-              name: channelName.value,
-              is_public: isPublic.value,
+              name: channelName.value.trim(),
+              is_public: true,
             },
             {
               headers: {
@@ -56,7 +52,6 @@
   
       return {
         channelName,
-        isPublic,
         createChannel,
         goBack,
       };
@@ -105,15 +100,9 @@
     border-radius: 5px;
   }
   
-  label {
-    display: block;
-    color: white;
-    margin-bottom: 10px;
-  }
-  
   button {
     padding: 10px;
-    width: 85%;
+    width: 80%;
     background: #1db954;
     color: white;
     border: none;

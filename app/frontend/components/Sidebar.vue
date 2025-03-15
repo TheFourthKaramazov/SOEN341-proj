@@ -12,8 +12,9 @@
         </li>
       </ul>
       
-      <!-- Create Channel button only visible to admins -->
+      <!-- Create and delete channel buttons only visible to admins -->
       <button v-if="isAdmin" @click="goToCreateChannel" class="admin-button"> Create Channel </button>
+      <button v-if="isAdmin" @click="goToDeleteChannel" class="admin-button delete-button">Delete Channel</button>
 
       <h2>Users</h2>
       <ul>
@@ -32,7 +33,7 @@
 <script>
 import axios from "axios";
 import { useUserStore } from "../store/userStore";
-import { computed } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 
 export default {
@@ -53,10 +54,16 @@ export default {
       router.push("/create-channel");
     };
 
+    const goToDeleteChannel = () => {
+      console.log("Navigating to /delete-channel");
+      router.push("/delete-channel");
+    };
+
     return {
       userStore,
       isAdmin,
       goToCreateChannel,
+      goToDeleteChannel,
     };
   },
 
@@ -64,6 +71,7 @@ export default {
     return {
       users: [],
       channels: [],
+      socket: null,
     };
   },
   computed: {
@@ -77,6 +85,7 @@ export default {
   async mounted() {
     await this.fetchUsers();
     await this.fetchChannels();
+    this.connectWebSocket();
   },
   methods: {
     async fetchUsers() {
@@ -104,6 +113,31 @@ export default {
     selectUser(user) {
       this.$emit("selectUser", user);
     },
+    connectWebSocket() {
+      this.socket = new WebSocket("ws://localhost:8000/realtime/global/channels");
+
+      this.socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === "channel_created") {
+          // Add the new channel to the list
+          this.channels.push(data.channel);
+        } else if (data.event === "channel_deleted") {
+          // Remove the deleted channel from the list
+          this.channels = this.channels.filter(channel => channel.id !== data.channel_id);
+        }
+      };
+
+      this.socket.onclose = () => {
+        console.log("WebSocket connection closed. Reconnecting...");
+        setTimeout(this.connectWebSocket, 3000); // Reconnect after 3 seconds
+      };
+    },
+  },
+  
+  beforeUnmount() {
+    if (this.socket) {
+      this.socket.close();
+    }
   },
 };
 </script>
@@ -161,7 +195,7 @@ export default {
   width: 100%;
   padding: 10px;
   margin-top: 10px;
-  background-color: #1db954;
+  background-color: #4e5b67;
   color: white;
   border: none;
   border-radius: 5px;
@@ -172,4 +206,9 @@ export default {
 .admin-button:hover {
   background-color: #169c46;
 }
+
+.admin-button.delete-button:hover {
+  background-color: #cc0000;
+}
+
 </style>
