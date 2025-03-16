@@ -35,46 +35,6 @@ def get_db():
     finally:
         db.close()
 
-# @router.websocket("/ws/{user_id}")
-# async def websocket_endpoint(websocket: WebSocket, user_id: int):
-#     await websocket.accept()
-#     active_connections[user_id] = websocket  # Store user WebSocket
-
-#     try:
-#         while True:
-#             data = await websocket.receive_json()
-#             message_type = data.get("type")
-
-#             if message_type == "channel_message":
-#                 channel_id = data["channel_id"]
-#                 sender_id = data["sender_id"]
-#                 content = data["content"]
-
-#                 print(f"Received channel message: {channel_id} - {content}")  # ✅ Debugging
-
-#                 # ✅ Store message in database
-#                 new_message = ChannelMessage(
-#                     sender_id=sender_id,
-#                     channel_id=channel_id,
-#                     text=content
-#                 )
-#                 db = SessionLocal()
-#                 db.add(new_message)
-#                 db.commit()
-#                 db.refresh(new_message)
-#                 db.close()
-
-#                 # ✅ Broadcast to all users in channel
-#                 for conn in active_connections.values():
-#                     await conn.send_json({
-#                         "type": "channel_message",
-#                         "channel_id": channel_id,
-#                         "sender_id": sender_id,
-#                         "content": content
-#                     })
-
-#     except WebSocketDisconnect:
-#         del active_connections[user_id]
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import List
 from app.backend.database import get_db
@@ -185,7 +145,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
                 "content": message_text
             }
 
-            # ✅ Send to all active connections of the receiver
+            #  Send to all active connections of the receiver
             if receiver_id in active_connections:
                 for ws in active_connections[receiver_id]:
                     try:
@@ -194,7 +154,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
                     except Exception as e:
                         print(f"Failed to send message to {receiver_id}: {e}")
 
-            # ✅ Also send message back to sender (so their UI updates immediately)
+            # Also send message back to sender (so their UI updates immediately)
             if sender_id in active_connections:
                 for ws in active_connections[sender_id]:
                     try:

@@ -55,23 +55,6 @@ class Channel(Base):
     # relationship to users who have access to the channel
     users = relationship("UserChannel", back_populates="channel")
 
-# class ChannelMessage(Base):
-#     """Database model for storing messages within chat channels."""
-#     __tablename__ = "channel_messages" # table name
-    
-#     # message ID, channel ID, sender ID, message text, and timestamp
-#     id = Column(Integer, primary_key=True, index=True)
-#     channel_id = Column(Integer, ForeignKey("channels.id"), nullable=False)
-#     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-#     text = Column(Text, nullable=False)
-#     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc)) 
-
-    
-#     # relationships to channel and sender
-#     channel = relationship("Channel", back_populates="messages")
-#     sender = relationship("User")
-
-
 
 class ChannelMessage(Base):
     __tablename__ = "channel_messages"

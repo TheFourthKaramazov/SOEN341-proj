@@ -24,10 +24,10 @@ export function connectToChannelWebSocket(channelId, receiveChannelMessage) {
           if (typeof receiveChannelMessage === "function") {
             receiveChannelMessage(message);
           } else {
-            console.warn("⚠️ receiveChannelMessage is not a function!");
+            console.warn(" receiveChannelMessage is not a function!");
           }
         } catch (err) {
-          console.error("❌ Error parsing message:", err);
+          console.error(" Error parsing message:", err);
         }
       };
   
@@ -99,7 +99,7 @@ export function sendDirectMessage(receiverId, content, senderId) {
 
 export function sendMessageToChannel(channelId, content, senderId) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-        console.error("❌ WebSocket is not connected.");
+        console.error(" WebSocket is not connected.");
     } 
     const messageData = {
         type: "channel_message",

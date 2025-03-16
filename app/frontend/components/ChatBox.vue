@@ -51,13 +51,13 @@
       });
 
 
-      // ✅ Reactive message class assignment
+      //  Reactive message class assignment
       const messageClasses = (msg) => ({
         "my-message": Number(msg.senderId) === Number(userId.value),
         "other-message": Number(msg.senderId) !== Number(userId.value),
       });
 
-      // ✅ Fetch messages for selected user/channel
+      //  Fetch messages for selected user/channel
       async function fetchMessages(id, type) {
         try {
           const url =
