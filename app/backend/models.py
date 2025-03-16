@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean, TIMESTAMP, text
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.backend.base import Base 
@@ -20,6 +20,12 @@ class User(Base):
 
     # relationship to channels the user has access to
     channels = relationship("UserChannel", back_populates="user")
+
+    sent_channel_messages = relationship(
+        "ChannelMessage",
+        foreign_keys="ChannelMessage.sender_id",  # Explicit FK reference
+        back_populates="sender"
+    )
 
 
 class DirectMessage(Base):
@@ -45,26 +51,24 @@ class Channel(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
     is_public = Column(Boolean, default=True)  # public by default
-    messages = relationship("ChannelMessage", back_populates="channel")
+    messages = relationship("ChannelMessage", back_populates="channel", cascade="all, delete")
 
     # relationship to users who have access to the channel
     users = relationship("UserChannel", back_populates="channel", cascade="all, delete-orphan")
 
+
 class ChannelMessage(Base):
-    """Database model for storing messages within chat channels."""
-    __tablename__ = "channel_messages" # table name
-    
-    # message ID, channel ID, sender ID, message text, and timestamp
+    __tablename__ = "channel_messages"
+
     id = Column(Integer, primary_key=True, index=True)
     channel_id = Column(Integer, ForeignKey("channels.id", ondelete="CASCADE"), nullable=False)
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     text = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc)) 
 
-    
-    # relationships to channel and sender
+    sender = relationship("User", back_populates="sent_channel_messages")
     channel = relationship("Channel", back_populates="messages")
-    sender = relationship("User")
+
 
 
 class UserChannel(Base):

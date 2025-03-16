@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from typing import Set
 from urllib import request
 
-from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -20,6 +20,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan) 
 active_connections = {}
+router = APIRouter()
 
 # CORS Middleware
 app.add_middleware(
@@ -36,6 +37,66 @@ def get_db():
         yield db
     finally:
         db.close()
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from typing import List
+from app.backend.database import get_db
+from app.backend.models import ChannelMessage
+
+channel_connections = {}
+
+@app.websocket("/ws/channel/{channel_id}")
+async def websocket_endpoint(websocket: WebSocket, channel_id: int, db: Session = Depends(get_db)):
+    await websocket.accept()
+    if channel_id not in channel_connections:
+        channel_connections[channel_id] = []
+    channel_connections[channel_id].append(websocket)
+    print(f"Client connected to channel {channel_id}")
+
+    try:
+        while True:
+            data = await websocket.receive_json()  # Receive message as JSON
+            sender_id = data.get("sender_id")  # Extract sender ID
+            message_text = data.get("text")
+            if not sender_id or not message_text:
+                continue
+            print(f"Message in channel {channel_id}: {data}")
+            
+            #  Save message to the database
+            message = ChannelMessage(
+                channel_id=channel_id,
+                sender_id=sender_id,  # Change this to the actual sender's ID (pass it from frontend)
+                text=message_text
+            )
+            db.add(message)
+            db.commit()
+
+            for ws in channel_connections[channel_id]:
+                await ws.send_json({"sender_id": sender_id, "text": message_text})
+            if sender_id in active_connections:
+                for ws in active_connections[sender_id]:
+                    try:
+                        await ws.send_json(data)
+
+                    except Exception as e:
+                        print(f"Failed to send message to {sender_id}: {e}")
+    except WebSocketDisconnect:
+        print(f"Client disconnected from channel {channel_id}")
+        channel_connections[channel_id].remove(websocket)
+
+
+
+@app.post("/test/channel-message/")
+def test_channel_message(channel_id: int, sender_id: int, text: str, db: Session = Depends(get_db)):
+    try:
+        new_message = ChannelMessage(channel_id=channel_id, sender_id=sender_id, text=text)
+        db.add(new_message)
+        db.commit()
+        db.refresh(new_message)
+        return {"message": "Message saved!", "id": new_message.id}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.post("/login")
@@ -87,7 +148,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
                 "content": message_text
             }
 
-            # ✅ Send to all active connections of the receiver
+            #  Send to all active connections of the receiver
             if receiver_id in active_connections:
                 for ws in active_connections[receiver_id]:
                     try:
@@ -96,7 +157,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
                     except Exception as e:
                         print(f"Failed to send message to {receiver_id}: {e}")
 
-            # ✅ Also send message back to sender (so their UI updates immediately)
+            # Also send message back to sender (so their UI updates immediately)
             if sender_id in active_connections:
                 for ws in active_connections[sender_id]:
                     try:
@@ -121,14 +182,14 @@ async def websocket_channel_endpoint(
 ):
     """Handles real-time channel messaging."""
     user = db.query(User).filter_by(id=user_id).first()
-    if not user:
-        await websocket.close(code=4001)
-        return
+    # if not user:
+    #     await websocket.close(code=4001)
+    #     return
 
     channel = db.query(Channel).filter_by(id=channel_id).first()
-    if not channel:
-        await websocket.close(code=4002)
-        return
+    # if not channel:
+    #     await websocket.close(code=4002)
+    #     return
 
     await websocket.accept()
     if channel_id not in active_connections:
@@ -187,6 +248,26 @@ def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: st
         "id": new_message.id,
         "sender_id": sender_id,
         "receiver_id": receiver_id,
+        "text": new_message.text,
+        "timestamp": new_message.timestamp  
+    }
+
+def store_channel_message(db: Session, sender_id: int, channel_id: int, text: str):
+    sender = db.query(User).filter(User.id == sender_id).first()
+    channel = db.query(User).filter(User.id == channel_id).first()
+
+    if not sender or not channel:
+        raise HTTPException(status_code=404, detail="Sender or receiver not found")
+
+    new_message = DirectMessage(sender_id=sender_id, channel_id=channel_id, text=text)
+    db.add(new_message)
+    db.commit()
+    db.refresh(new_message)
+
+    return {
+        "id": new_message.id,
+        "sender_id": sender_id,
+        "channel_id": channel_id,
         "text": new_message.text,
         "timestamp": new_message.timestamp  
     }
