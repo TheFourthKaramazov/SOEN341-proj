@@ -1,24 +1,23 @@
 <template>
     <div>
       <Login v-if="!userStore.userId" @loggedIn="setUser" />
-      <Home v-else />
+      <RouterView v-else />
     </div>
-  </template>
+</template>
   
   <script>
-  import Home from './components/Home.vue';
-  import Login from './components/Login.vue';
   import { useUserStore } from "./store/userStore";
+  import Login from './components/Login.vue';
   
   export default {
-    components: { Home, Login },
+    components: { Login },
     setup() {
       const userStore = useUserStore();
       return { userStore };
     },
     methods: {
       setUser(user) {
-        this.userStore.setUser(user.id, user.username);
+        this.userStore.setUser(user.id, user.username, user.is_admin);
       },
     },
   };

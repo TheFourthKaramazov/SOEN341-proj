@@ -12,6 +12,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    is_admin = Column(Boolean, default=False)
 
     # relationships to direct messages sent and received
     sent_messages = relationship("DirectMessage", foreign_keys="DirectMessage.sender_id", back_populates="sender")
@@ -47,7 +48,7 @@ class Channel(Base):
     messages = relationship("ChannelMessage", back_populates="channel")
 
     # relationship to users who have access to the channel
-    users = relationship("UserChannel", back_populates="channel")
+    users = relationship("UserChannel", back_populates="channel", cascade="all, delete-orphan")
 
 class ChannelMessage(Base):
     """Database model for storing messages within chat channels."""
@@ -55,7 +56,7 @@ class ChannelMessage(Base):
     
     # message ID, channel ID, sender ID, message text, and timestamp
     id = Column(Integer, primary_key=True, index=True)
-    channel_id = Column(Integer, ForeignKey("channels.id"), nullable=False)
+    channel_id = Column(Integer, ForeignKey("channels.id", ondelete="CASCADE"), nullable=False)
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     text = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc)) 
