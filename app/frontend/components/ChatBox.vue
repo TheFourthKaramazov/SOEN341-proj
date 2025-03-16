@@ -25,10 +25,11 @@
   </template>
   
   <script>
-  import { ref, computed, watch, onMounted, nextTick } from "vue";
+  import { ref, computed, watch, onMounted, nextTick, reactive, watchEffect } from "vue";
   import { useUserStore } from "../store/userStore";
   import { sendDirectMessage, sendMessageToChannel, connectWebSocket, onDirectMessage, onChannelMessage } from '../services/websocketService';
   import { useDirectMessageStore } from "../store/directMessageStore";
+  import {connectToChannelWebSocket, disconnectWebSocket } from "../services/websocketService.js";
 
   export default {
     props: ["selectedUser", "selectedChannel"],
@@ -39,11 +40,13 @@
       const userStore = useUserStore();
       const users = computed(() => userStore.users);
 
-      const messageStore = useDirectMessageStore();
+      const messageStore = reactive(useDirectMessageStore());
       const messages = computed(() => {
         if (props.selectedUser) {
           return messageStore.messages[props.selectedUser.id] || [];
-        }
+        }else if (props.selectedChannel) {
+    return messageStore.messages[props.selectedChannel.id] || [];
+  }
         return [];
       });
 
@@ -102,16 +105,43 @@
           messageStore.messages[props.selectedUser.id].push(messageData);
         }
 
+        if (props.selectedChannel) {
+        sendMessageToChannel(props.selectedChannel.id, newMessage.value, userId.value);
+
+        if (!messageStore.messages[props.selectedChannel.id]) {
+        messageStore.messages[props.selectedChannel.id] = [];
+    }
+
+    messageStore.messages[props.selectedChannel.id].push({
+      senderId: userId.value,
+      content: newMessage.value,
+    });
+  }
+
+
         newMessage.value = "";
         scrollToBottom();
       }
 
       function receiveChannelMessage(message) {
+        console.log("Received channel message:", message);
+        
         if (props.selectedChannel && message.channel_id === props.selectedChannel.id) {
-          messageStore.messages.push(message);
-          scrollToBottom();
-        }
+          if (!messageStore.messages[props.selectedChannel.id]) {
+            messageStore.messages[props.selectedChannel.id] = reactive([]);
+          }
+
+          messageStore.messages[props.selectedChannel.id].push({
+          senderId: message.sender_id,
+          content: message.text,
+        });
+
+    scrollToBottom();
       }
+    } 
+
+
+
 
       function getOtherUsername() {
         return props.selectedUser?.name || "Other user";
@@ -133,12 +163,19 @@
         }
       });
 
+      
       watch(() => props.selectedChannel, (newChannel) => {
         if (newChannel) {
           console.log(`Switched to channel: ${newChannel.id}`);
+          
           fetchMessages(newChannel.id, "channel");
+
+          //  Properly close previous WebSocket before opening a new one
+          disconnectWebSocket();
+          connectToChannelWebSocket(newChannel.id, receiveChannelMessage);
         }
       });
+
 
       watch(messages, (newMessages) => {
           scrollToBottom();

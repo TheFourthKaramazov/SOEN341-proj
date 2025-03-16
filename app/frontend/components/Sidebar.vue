@@ -77,6 +77,7 @@ export default {
   }
 },
     selectChannel(channel) {
+      console.log("Selected channel:", channel);
       this.$emit("selectChannel", channel);
     },
     selectUser(user) {
