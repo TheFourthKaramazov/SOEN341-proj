@@ -1,5 +1,8 @@
 import json
+import logging
 from contextlib import asynccontextmanager
+from typing import Set
+from urllib import request
 
 from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -111,7 +114,7 @@ def login(user: UserCreate, db: Session = Depends(get_db)):
     if existing_user.password_hash != user.password:
         raise HTTPException(status_code=401, detail="Incorrect password")
 
-    return {"id": existing_user.id, "username": existing_user.username}
+    return {"id": existing_user.id, "username": existing_user.username, "is_admin": existing_user.is_admin}
 
 @app.websocket("/realtime/direct/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
@@ -286,6 +289,7 @@ def get_messages(user1_id: int, user2_id: int, db: Session = Depends(get_db)):
 
     return [
         {
+            "id": msg.id,
             "sender_id": msg.sender_id,
             "receiver_id": msg.receiver_id,
             "sender_name": user_map.get(msg.sender_id, f"User {msg.sender_id}"),
@@ -305,16 +309,113 @@ def get_channel_messages(channel_id: int, db: Session = Depends(get_db)):
         .order_by(ChannelMessage.timestamp.asc())
         .all()
     )
-    return [{"sender_id": msg.sender_id, "text": msg.text} for msg in messages]
+    return [{"id": msg.id, "sender_id": msg.sender_id, "text": msg.text} for msg in messages]
+
+global_channel_connections: Set[WebSocket] = set()
+
+@app.websocket("/realtime/global/channels")
+async def websocket_global_channels(websocket: WebSocket, db: Session = Depends(get_db)):
+    await websocket.accept()
+    global_channel_connections.add(websocket)
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        global_channel_connections.remove(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        global_channel_connections.remove(websocket)
+
+# Function to broadcast global channel updates
+async def broadcast_channel_update(message: str):
+    for connection in global_channel_connections:
+        try:
+            await connection.send_text(message)
+        except Exception as e:
+            print(f"Failed to send message to connection: {e}")
+            global_channel_connections.remove(connection)
 
 # create Channel
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 @app.post("/channels/")
-def create_channel(channel: ChannelCreate, db: Session = Depends(get_db)):
-    new_channel = Channel(name=channel.name, is_public=channel.is_public)
-    db.add(new_channel)
+async def create_channel(channel: ChannelCreate, db: Session = Depends(get_db), user_id: int = Header(None)):
+    logger.debug(f"Received request to create channel. User ID: {user_id}")
+    
+    try:
+        # checks if channel name is blank
+        channel_name = channel.name.strip()
+        if not channel_name:
+            raise HTTPException(status_code=400, detail="Channel name cannot be blank")
+
+        # check if another channel has the same name
+        existing_channel = db.query(Channel).filter(Channel.name.ilike(channel_name)).first()
+        if existing_channel:
+            raise HTTPException(status_code=400, detail="Channel name already exists")
+
+        # check if admin
+        current_user = db.query(User).filter(User.id == user_id).first()
+        if not current_user:
+            logger.error(f"User not found: {user_id}")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        if not current_user.is_admin:
+            logger.error(f"User is not an admin: {user_id}")
+            raise HTTPException(status_code=403, detail="Only admins can create channels")
+
+        new_channel = Channel(name=channel.name, is_public=True)
+        db.add(new_channel)
+        db.commit()
+        db.refresh(new_channel)
+        logger.debug(f"Channel created successfully: {new_channel}")
+
+        await broadcast_channel_update(json.dumps({
+            "event": "channel_created",
+            "channel": {
+                "id": new_channel.id,
+                "name": new_channel.name,
+                "is_public": new_channel.is_public,
+            },
+        }))
+
+        return new_channel
+    
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Error creating channel: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# delete channel
+@app.delete("/delete_channel/{channel_id}")
+async def delete_channel(channel_id: int, user_id: int = Header(...), db: Session = Depends(get_db)):
+    current_user = db.query(User).filter(User.id == user_id).first()
+
+    # check if user exists
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check if the user has admin role
+    if not current_user or not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can delete channels")
+
+    # Find the channel that we will delete
+    channel_to_delete = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel_to_delete:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    db.delete(channel_to_delete)
     db.commit()
-    db.refresh(new_channel)
-    return new_channel
+
+    await broadcast_channel_update(json.dumps({
+        "event": "channel_deleted",
+        "channel_id": channel_id,
+    }))
+
+    return {"message": "Channel deleted successfully"}
+
 
 # join Channel
 @app.post("/join_channel/{channel_id}")
@@ -353,3 +454,65 @@ def get_channels(user_id: int = Header(None), db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No channels found")
 
     return available_channels
+
+
+@app.delete("/channel-messages/{message_id}")
+async def delete_channel_message(
+    message_id: int, 
+    db: Session = Depends(get_db), 
+    user_id: int = Header(None)
+):
+    # Check if admin
+    current_user = db.query(User).filter(User.id == user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can delete messages")
+
+    # Find the message to delete
+    message = db.query(ChannelMessage).filter(ChannelMessage.id == message_id).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    db.delete(message)
+    db.commit()
+
+    # Notify all clients in the channel
+    await notify_message_deleted(message.channel_id, message_id)
+
+    return {"message": "Message deleted successfully"}
+
+async def notify_message_deleted(channel_id: int, message_id: int):
+    if channel_id in active_connections:
+        for websocket in active_connections[channel_id]:
+            try:
+                await websocket.send_json({
+                    "action": "message_deleted",
+                    "channel_id": channel_id,
+                    "message_id": message_id,
+                })
+            except Exception as e:
+                print(f"Failed to notify client: {e}")
+
+@app.delete("/direct-messages/{message_id}")
+async def delete_direct_message(
+    message_id: int, 
+    db: Session = Depends(get_db), 
+    user_id: int = Header(None)
+):
+    # Check if admin
+    current_user = db.query(User).filter(User.id == user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can delete messages")
+
+    # Find the message to delete
+    message = db.query(DirectMessage).filter(DirectMessage.id == message_id).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    db.delete(message)
+    db.commit()
+
+    return {"message": "Direct message deleted successfully"}

@@ -9,6 +9,8 @@
             {{ Number(msg.senderId) === Number(userId) ? "Me" : getOtherUsername()}}:
           </strong>
           {{ msg.content }}
+          <!-- Delete button only visible for admins -->
+          <button v-if="isAdmin" @click="deleteMessage(msg.id)" class="trash-button">Delete</button>
         </div>
       </div>
   
@@ -25,7 +27,8 @@
   </template>
   
   <script>
-  import { ref, computed, watch, onMounted, nextTick, reactive, watchEffect } from "vue";
+  import axios from 'axios';
+  import { ref, computed, watch, onMounted, nextTick } from "vue";
   import { useUserStore } from "../store/userStore";
   import { sendDirectMessage, sendMessageToChannel, connectWebSocket, onDirectMessage, onChannelMessage } from '../services/websocketService';
   import { useDirectMessageStore } from "../store/directMessageStore";
@@ -38,15 +41,18 @@
       const newMessage = ref("");
 
       const userStore = useUserStore();
+      const isAdmin = computed(() => userStore.isAdmin);
       const users = computed(() => userStore.users);
 
       const messageStore = reactive(useDirectMessageStore());
       const messages = computed(() => {
         if (props.selectedUser) {
+          console.log("Direct messages:", messageStore.messages[props.selectedUser.id] || []);
           return messageStore.messages[props.selectedUser.id] || [];
-        }else if (props.selectedChannel) {
-    return messageStore.messages[props.selectedChannel.id] || [];
-  }
+        } else if (props.selectedChannel) {
+          console.log("Channel messages:", messageStore.messages[props.selectedChannel.id] || []); // Log channel messages
+          return messageStore.messages[props.selectedChannel.id] || [];
+        }
         return [];
       });
 
@@ -70,7 +76,10 @@
           const response = await fetch(url);
           const data = await response.json();
 
+          console.log("Fetched messages:", data);
+
           messageStore.messages[id] = data.map((msg) => ({
+            id: msg.id,
             senderId: msg.sender_id,
             receiverId: msg.receiver_id,
             senderName: msg.sender_name,
@@ -143,6 +152,43 @@
 
 
 
+      // Delete a message
+      async function deleteMessage(messageId) {
+        try {
+          // Determine if it's a direct message or a channel message
+          const url = props.selectedUser
+            ? `http://localhost:8000/direct-messages/${messageId}` // Endpoint for direct messages
+            : `http://localhost:8000/channel-messages/${messageId}`; // Endpoint for channel messages
+
+          // Add headers or payload if required by the backend
+          const config = {
+            headers: {
+              "user-id": userId.value, // Ensure this matches the backend's expected header
+            },
+          };
+
+          console.log("Sending DELETE request to:", url); // Debugging
+          console.log("Headers:", config.headers); // Debugging
+
+          const response = await axios.delete(url, config);
+          console.log("Delete response:", response.data); // Debugging
+
+          // Remove the deleted message from the local state
+          if (props.selectedUser) {
+            messageStore.messages[props.selectedUser.id] = messageStore.messages[props.selectedUser.id].filter(
+              (msg) => msg.id !== messageId
+            );
+          } else if (props.selectedChannel) {
+            messageStore.messages[props.selectedChannel.id] = messageStore.messages[props.selectedChannel.id].filter(
+              (msg) => msg.id !== messageId
+            );
+          }
+        } catch (error) {
+          console.error("Failed to delete message:", error);
+          console.error("Error details:", error.response?.data); // Log the server's response for debugging
+        }
+      }
+
       function getOtherUsername() {
         return props.selectedUser?.name || "Other user";
       }
@@ -183,7 +229,18 @@
 
       onMounted(() => {
         connectWebSocket(userId.value);
-        onChannelMessage(receiveChannelMessage);
+
+        // Listen for deleted messages
+        onChannelMessage((message) => {
+          if (message.action === "message_deleted") {
+            if (props.selectedChannel && message.channel_id === props.selectedChannel.id) {
+              // Remove the deleted message from the local state
+              messageStore.messages[props.selectedChannel.id] = messageStore.messages[props.selectedChannel.id].filter(
+                (msg) => msg.id !== message.message_id
+              );
+            }
+          }
+        });
 
         if (props.selectedUser) {
           fetchMessages(props.selectedUser.id, "user");
@@ -197,8 +254,10 @@
         messages,
         newMessage,
         users,
+        isAdmin,
         messageClasses,
         sendMessage,
+        deleteMessage,
         receiveChannelMessage,
         getOtherUsername,
         scrollToBottom,
@@ -300,6 +359,20 @@
     .message-input button:hover {
     background: #17a74a;
     transform: scale(1.1);
+    }
+
+    /* Trash button */
+    .trash-button {
+      margin-left: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      color: #ff0000;
+    }
+
+    .trash-button:hover {
+      color: #a30000;
     }
 
 </style>
