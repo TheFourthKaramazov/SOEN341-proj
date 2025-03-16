@@ -204,7 +204,7 @@ export default {
 }
 
 .admin-button:hover {
-  background-color: #169c46;
+  background-color: #1db954;
 }
 
 .admin-button.delete-button:hover {

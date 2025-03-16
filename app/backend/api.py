@@ -208,6 +208,7 @@ def get_messages(user1_id: int, user2_id: int, db: Session = Depends(get_db)):
 
     return [
         {
+            "id": msg.id,
             "sender_id": msg.sender_id,
             "receiver_id": msg.receiver_id,
             "sender_name": user_map.get(msg.sender_id, f"User {msg.sender_id}"),
@@ -227,7 +228,7 @@ def get_channel_messages(channel_id: int, db: Session = Depends(get_db)):
         .order_by(ChannelMessage.timestamp.asc())
         .all()
     )
-    return [{"sender_id": msg.sender_id, "text": msg.text} for msg in messages]
+    return [{"id": msg.id, "sender_id": msg.sender_id, "text": msg.text} for msg in messages]
 
 global_channel_connections: Set[WebSocket] = set()
 
@@ -372,3 +373,65 @@ def get_channels(user_id: int = Header(None), db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No channels found")
 
     return available_channels
+
+
+@app.delete("/channel-messages/{message_id}")
+async def delete_channel_message(
+    message_id: int, 
+    db: Session = Depends(get_db), 
+    user_id: int = Header(None)
+):
+    # Check if admin
+    current_user = db.query(User).filter(User.id == user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can delete messages")
+
+    # Find the message to delete
+    message = db.query(ChannelMessage).filter(ChannelMessage.id == message_id).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    db.delete(message)
+    db.commit()
+
+    # Notify all clients in the channel
+    await notify_message_deleted(message.channel_id, message_id)
+
+    return {"message": "Message deleted successfully"}
+
+async def notify_message_deleted(channel_id: int, message_id: int):
+    if channel_id in active_connections:
+        for websocket in active_connections[channel_id]:
+            try:
+                await websocket.send_json({
+                    "action": "message_deleted",
+                    "channel_id": channel_id,
+                    "message_id": message_id,
+                })
+            except Exception as e:
+                print(f"Failed to notify client: {e}")
+
+@app.delete("/direct-messages/{message_id}")
+async def delete_direct_message(
+    message_id: int, 
+    db: Session = Depends(get_db), 
+    user_id: int = Header(None)
+):
+    # Check if admin
+    current_user = db.query(User).filter(User.id == user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can delete messages")
+
+    # Find the message to delete
+    message = db.query(DirectMessage).filter(DirectMessage.id == message_id).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    db.delete(message)
+    db.commit()
+
+    return {"message": "Direct message deleted successfully"}
