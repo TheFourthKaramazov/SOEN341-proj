@@ -28,7 +28,7 @@
   
   <script>
   import axios from 'axios';
-  import { ref, computed, watch, onMounted, nextTick } from "vue";
+  import { ref, computed, watch, onMounted, nextTick, reactive } from "vue";
   import { useUserStore } from "../store/userStore";
   import { sendDirectMessage, sendMessageToChannel, connectWebSocket, onDirectMessage, onChannelMessage } from '../services/websocketService';
   import { useDirectMessageStore } from "../store/directMessageStore";
