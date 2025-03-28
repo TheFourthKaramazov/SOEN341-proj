@@ -16,6 +16,7 @@
   
       <!-- ✅ FIXED: Ensure message input shows when a user or channel is selected -->
       <div class="message-input" v-if="selectedUser || selectedChannel">
+        <button class = "insertFileButton" @click="insertFile" >+</button>
         <input v-model="newMessage" @keyup.enter="sendMessage" placeholder="Type a message..." />
         <button @click="sendMessage" :disabled="!newMessage.trim()">Send</button>
       </div>
@@ -202,6 +203,44 @@
         });
       }
 
+      function insertFile() {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.style.display = "none";
+      
+        // listen for file inputs
+        fileInput.addEventListener("change", async (event) => {
+          const selectedFile = event.target.files[0];
+          if (selectedFile) {
+            console.log("Selected file:", selectedFile);
+      
+            // create an object (form data) 
+            const formData = new FormData();
+            formData.append("file", selectedFile);
+      
+            try {
+              // send the form data object via an axios.post request
+              const response = await axios.post("http://localhost:8000/upload", formData, {
+                headers: {
+                  "Content-Type": "multipart/form-data",
+                },
+              });
+      
+              console.log("File uploaded successfully:", response.data);
+            } catch (error) {
+              console.error("Error uploading file:", error);
+            }
+          }
+        });
+      
+        // this will open the file explorer when clicking on the button
+        document.body.appendChild(fileInput);
+        fileInput.click();
+      
+        // Remove the input once done using it
+        fileInput.remove();
+      }
+
       watch(() => props.selectedUser, (newUser) => {
         if (newUser) {
           console.log(`Switched to user: ${newUser.id}`);
@@ -261,7 +300,9 @@
         receiveChannelMessage,
         getOtherUsername,
         scrollToBottom,
+        insertFile,
       };
+      
     },
   };
   </script>
@@ -373,6 +414,13 @@
 
     .trash-button:hover {
       color: #a30000;
+    }
+
+    .insertFileButton{
+      font-size : 100px;
+      background: none;
+      padding-right : 10px;
+      margin-right : 10px;
     }
 
 </style>
