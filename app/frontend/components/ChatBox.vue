@@ -28,10 +28,8 @@
   import axios from 'axios';
   import { ref, computed, watch, onMounted, nextTick, reactive } from "vue";
   import { useUserStore } from "../store/userStore";
-  import { sendDirectMessage, sendMessageToChannel, connectWebSocket, onDirectMessage, onChannelMessage } from '../services/websocketService';
+  import { sendDirectMessage, connectWebSocket } from '../services/websocketService';
   import { useDirectMessageStore } from "../store/directMessageStore";
-  import {connectToChannelWebSocket, disconnectWebSocket } from "../services/websocketService.js";
-  import { isWebSocketReady } from '../services/websocketService';
 
   export default {
     props: ["selectedUser", "selectedChannel"],
@@ -121,7 +119,12 @@
               receiverId: props.selectedUser?.id,
               content: newMessage.value,
             };
-            sendDirectMessage(props.selectedUser.id, newMessage.value, userId.value);
+            sendDirectMessage (
+              props.selectedUser.id,
+              newMessage.value,
+              userId.value,
+              "direct"
+            );
 
             if (!messageStore.messages[props.selectedUser.id]) {
               messageStore.messages[props.selectedUser.id] = [];
@@ -131,7 +134,12 @@
           }
           
           if (props.selectedChannel) {
-            sendMessageToChannel(props.selectedChannel.id, newMessage.value, userId.value);
+            sendDirectMessage (
+              props.selectedChannel.id, // use channel ID as receiver ID
+              newMessage.value,
+              userId.value,
+              "channel"
+            );
           }
 
           newMessage.value = "";  // Clear input, but wait for WebSocket update
@@ -240,9 +248,6 @@
         if (newChannel) {
             console.log(`Switched to channel: ${newChannel.id}`);
             fetchMessages(newChannel.id, "channel");
-
-            disconnectWebSocket();  // Close old WebSocket
-            connectToChannelWebSocket(newChannel.id, receiveChannelMessage);
         }
     });
 
@@ -256,18 +261,6 @@
       onMounted(() => {
         fetchUsers();
         connectWebSocket(userId.value);
-
-        // Listen for deleted messages
-        onChannelMessage((message) => {
-          if (message.action === "message_deleted") {
-            if (props.selectedChannel && message.channel_id === props.selectedChannel.id) {
-              // Remove the deleted message from the local state
-              messageStore.messages[props.selectedChannel.id] = messageStore.messages[props.selectedChannel.id].filter(
-                (msg) => msg.id !== message.message_id
-              );
-            }
-          }
-        });
 
         if (props.selectedUser) {
           fetchMessages(props.selectedUser.id, "user");
