@@ -43,7 +43,13 @@ export const useDirectMessageStore = defineStore("directMessage", {
             if (!this.messages[channelId]) {
                 this.messages[channelId] = [];
             }
-            this.messages[channelId].push(message);
+
+            this.messages[channelId].push({
+                id: message.id,
+                senderId: message.sender_id,
+                content: message.text,
+                timestamp: message.timestamp,
+              });
         },
         subscribeToDirectMessages() {
             onDirectMessage((message) => {

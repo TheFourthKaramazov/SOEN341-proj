@@ -44,14 +44,16 @@
 
       const messageStore = reactive(useDirectMessageStore());
       const messages = computed(() => {
+        let list = [];
+
         if (props.selectedUser) {
-          console.log("Direct messages:", messageStore.messages[props.selectedUser.id] || []);
-          return messageStore.messages[props.selectedUser.id] || [];
+          list = messageStore.messages[props.selectedUser.id] || [];
         } else if (props.selectedChannel) {
-          console.log("Channel messages:", messageStore.messages[props.selectedChannel.id] || []); // Log channel messages
-          return messageStore.messages[props.selectedChannel.id] || [];
+          list = messageStore.messages[props.selectedChannel.id] || [];
         }
-        return [];
+
+        // Filter out messages that have been deleted.
+        return list.filter(msg => msg?.senderId && msg?.content);
       });
 
 
@@ -221,8 +223,15 @@
               return props.selectedUser?.name || "Loading...";
           }
 
+
+        //   console.log("userMap:", userMap);
+        // console.log("senderId:", message.senderId);
+        // console.log("userMap.value[senderId]:", userMap.value[message.senderId]);
+
+
+        
           // For channel messages, look up the sender's name in userMap
-          return userMap.value[message.senderId] || "Loading...";
+          return userMap.value[Number(message.senderId)] || "Loading...";
       }
 
 
