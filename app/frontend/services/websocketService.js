@@ -1,44 +1,57 @@
 import { useDirectMessageStore } from "../store/directMessageStore";
 
 let socket = null;
+let isListening = false;
 
 export function connectWebSocket(userId) {
-    if (socket) {
-        console.warn("[WARNING] WebSocket already exists, reattaching event listeners.");
-    } else {
-        const wsUrl = `ws://localhost:8000/realtime/direct/${userId}`;
-        socket = new WebSocket(wsUrl);
+  const wsUrl = `ws://localhost:8000/realtime/direct/${userId}`;
 
-        socket.onopen = () => {
-            console.log("WebSocket connected:", wsUrl);
-        };
+  if (socket) {
+    console.warn("[WARNING] WebSocket already exists");
+    return;
+  }
 
-        socket.onclose = (event) => console.log(`[INFO] WebSocket disconnected. Code: ${event.code}`);
-        socket.onerror = (error) => console.error("[ERROR] WebSocket encountered an error:", error);
-    }
+  socket = new WebSocket(wsUrl);
 
-    const messageStore = useDirectMessageStore(); //  Ensure store is initialized
+  socket.onopen = () => {
+    console.log("WebSocket connected:", wsUrl);
+  };
+
+  socket.onclose = (event) => console.log(`WebSocket disconnected. Code: ${event.code}`);
+  socket.onerror = (error) => console.error(`[ERROR] WebSocket encountered an error: ${event}`);
+
+  if (!isListening) {
+    const messageStore = useDirectMessageStore();
 
     socket.addEventListener("message", (event) => {
-        try {
-            const message = JSON.parse(event.data);
-            if (message.channel_id) {
-                // It's a channel message
-                const store = useDirectMessageStore(); // or useChannelStore()
-                store.receiveChannelMessage(message);  // You’ll need to add this method
-            } else if (message.receiver_id) {
-                // It's a direct message
-                const store = useDirectMessageStore();
-                store.receiveMessage(message);
-            }
-        } catch (error) {
-            console.error("[ERROR] Failed to parse WebSocket message:", error);
+      try {
+        const message = JSON.parse(event.data);
+
+        if (message.action === "message_deleted") {
+          messageStore.deleteMessage(
+            message.receiver_id || message.sender_id,
+            message.message_id
+          );
+          return;
         }
+
+        if (message.channel_id) {
+          messageStore.receiveChannelMessage(message);
+        } else if (message.receiver_id) {
+          messageStore.receiveMessage(message);
+        }
+
+      } catch (error) {
+        console.error("[ERROR] Failed to parse WebSocket message:", error);
+      }
     });
 
+    isListening = true;
+  }
 
-    window.socket = socket; //  Store for debugging
+  window.socket = socket;
 }
+
 
 export function sendDirectMessage(receiverId, content, senderId, type = "direct") {
     if (!socket || socket.readyState !== WebSocket.OPEN) {

@@ -52,8 +52,7 @@
           list = messageStore.messages[props.selectedChannel.id] || [];
         }
 
-        // Filter out messages that have been deleted.
-        return list.filter(msg => msg?.senderId && msg?.content);
+        return list;
       });
 
 
@@ -252,16 +251,12 @@
         }
       });
 
-
-    watch(() => props.selectedChannel, (newChannel) => {
-        if (newChannel) {
-            console.log(`Switched to channel: ${newChannel.id}`);
-            fetchMessages(newChannel.id, "channel");
-        }
-    });
-
-
-
+      watch(() => props.selectedChannel, (newChannel) => {
+          if (newChannel) {
+              console.log(`Switched to channel: ${newChannel.id}`);
+              fetchMessages(newChannel.id, "channel");
+          }
+      });
 
       watch(messages, (newMessages) => {
           scrollToBottom();
