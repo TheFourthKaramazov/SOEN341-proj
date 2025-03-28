@@ -126,7 +126,7 @@ def login(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.websocket("/realtime/direct/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
-    """Handles real-time direct messaging."""
+    """Handles real-time messaging: both direct and channel messages."""
     await websocket.accept()
 
     if user_id not in active_connections:
@@ -135,54 +135,70 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
 
     try:
         while True:
-            data = await websocket.receive_text()  # Receive raw message
+            data = await websocket.receive_text()
 
-            # Try parsing the message (Handle bad JSON)
             try:
                 message = json.loads(data)
+                msg_type = message.get("type", "direct")  # default to direct if not specified
                 sender_id = user_id
-                receiver_id = message.get("receiver_id")
-                message_text = message.get("content")
+
+                if msg_type == "direct":
+                    receiver_id = message.get("receiver_id")
+                    message_text = message.get("content")
+
+                    store_direct_message(db, sender_id, receiver_id, message_text)
+
+                    response_data = {
+                        "type": "direct",
+                        "sender_id": sender_id,
+                        "receiver_id": receiver_id,
+                        "content": message_text
+                    }
+
+                    # Send to receiver
+                    if receiver_id in active_connections:
+                        for ws in active_connections[receiver_id]:
+                            await ws.send_json(response_data)
+
+                    # Send to sender
+                    for ws in active_connections[sender_id]:
+                        await ws.send_json(response_data)
+
+                elif msg_type == "channel":
+                    channel_id = message.get("receiver_id") or message.get("channel_id")
+                    message_text = message.get("content") or message.get("text")
+
+                    new_message = ChannelMessage(channel_id=channel_id, sender_id=sender_id, text=message_text)
+                    db.add(new_message)
+                    db.commit()
+                    db.refresh(new_message)
+
+                    response_data = {
+                        "type": "channel",
+                        "id": new_message.id,
+                        "channel_id": channel_id,
+                        "sender_id": sender_id,
+                        "text": message_text
+                    }
+
+                    # Send to all connections in the channel (if we store them that way)
+                    # For now, just broadcast to all users (or optimize this later)
+                    for uid, conns in active_connections.items():
+                        for ws in conns:
+                            await ws.send_json(response_data)
+
             except json.JSONDecodeError as e:
                 print(f"[ERROR] Invalid JSON received: {data}, Error: {e}")
-                continue  # Skip processing invalid data
-
-            # Store the message in the database
-            store_direct_message(db, sender_id, receiver_id, message_text)
-
-            response_data = {
-                "sender_id": sender_id,
-                "receiver_id": receiver_id,
-                "content": message_text
-            }
-
-            #  Send to all active connections of the receiver
-            if receiver_id in active_connections:
-                for ws in active_connections[receiver_id]:
-                    try:
-                        await ws.send_json(response_data)
-
-                    except Exception as e:
-                        print(f"Failed to send message to {receiver_id}: {e}")
-
-            # Also send message back to sender (so their UI updates immediately)
-            if sender_id in active_connections:
-                for ws in active_connections[sender_id]:
-                    try:
-                        await ws.send_json(response_data)
-
-                    except Exception as e:
-                        print(f"Failed to send message to {sender_id}: {e}")
+                continue
 
     except WebSocketDisconnect:
         print(f"[INFO] WebSocket disconnected: {user_id}")
         active_connections[user_id].remove(websocket)
-        if not active_connections[user_id]:  # Remove user if no active connections remain
+        if not active_connections[user_id]:
             del active_connections[user_id]
 
     except Exception as e:
         print(f"[ERROR] WebSocket crashed: {e}")
-
 
 # webSocket for Channels
 @app.websocket("/realtime/channel/{channel_id}/{user_id}")
