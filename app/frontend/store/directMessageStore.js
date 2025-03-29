@@ -32,17 +32,41 @@ export const useDirectMessageStore = defineStore("directMessage", {
             this.messages[receiverId].push(message);
         },
         receiveMessage(message) {
-            if (!this.messages[message.sender_id]) {
-                this.messages[message.sender_id] = [];
+            const convId = message.sender_id === Number(localStorage.getItem("userId"))
+                ? message.receiver_id
+                : message.sender_id;
+
+            if (!this.messages[convId]) {
+                this.messages[convId] = [];
+            }
+            
+            this.messages[convId].push({
+                id: message.id,
+                senderId: message.sender_id,
+                receiverId: message.receiver_id,
+                content: message.content,
+                timestamp: message.timestamp,
+            });
+        },          
+        receiveChannelMessage(message) {
+            const channelId = message.channel_id;
+            if (!this.messages[channelId]) {
+                this.messages[channelId] = [];
             }
 
-            this.messages[message.sender_id].push(message);
+            this.messages[channelId].push({
+                id: message.id,
+                senderId: message.sender_id,
+                content: message.text,
+                timestamp: message.timestamp,
+              });
         },
-        subscribeToDirectMessages() {
-            onDirectMessage((message) => {
-                const { receiver_id, text } = message;
-                this.addMessage(receiver_id, {text, received: true})
-            })
+        deleteMessage(messageId, conversationId) {
+            if (!this.messages[conversationId]) return;
+            const index = this.messages[conversationId].findIndex(m => m.id === messageId);
+            if (index !== -1) {
+              this.messages[conversationId].splice(index, 1);
+            }
         }
     },
 });

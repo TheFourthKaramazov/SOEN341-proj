@@ -5,9 +5,7 @@
           v-for="(msg, index) in messages" 
           :key="index" 
           :class="messageClasses(msg)">
-          <strong>
-            {{ Number(msg.senderId) === Number(userId) ? "Me" : getOtherUsername()}}:
-          </strong>
+          <strong>{{ getOtherUsername(msg) }}:</strong>
           {{ msg.content }}
           <!-- Delete button only visible for admins -->
           <button v-if="isAdmin" @click="deleteMessage(msg.id)" class="trash-button">Delete</button>
@@ -30,9 +28,8 @@
   import axios from 'axios';
   import { ref, computed, watch, onMounted, nextTick, reactive } from "vue";
   import { useUserStore } from "../store/userStore";
-  import { sendDirectMessage, sendMessageToChannel, connectWebSocket, onDirectMessage, onChannelMessage } from '../services/websocketService';
+  import { sendDirectMessage, connectWebSocket } from '../services/websocketService';
   import { useDirectMessageStore } from "../store/directMessageStore";
-  import {connectToChannelWebSocket, disconnectWebSocket } from "../services/websocketService.js";
 
   export default {
     props: ["selectedUser", "selectedChannel"],
@@ -43,17 +40,19 @@
       const userStore = useUserStore();
       const isAdmin = computed(() => userStore.isAdmin);
       const users = computed(() => userStore.users);
+      const userMap = ref({});
 
       const messageStore = reactive(useDirectMessageStore());
       const messages = computed(() => {
+        let list = [];
+
         if (props.selectedUser) {
-          console.log("Direct messages:", messageStore.messages[props.selectedUser.id] || []);
-          return messageStore.messages[props.selectedUser.id] || [];
+          list = messageStore.messages[props.selectedUser.id] || [];
         } else if (props.selectedChannel) {
-          console.log("Channel messages:", messageStore.messages[props.selectedChannel.id] || []); // Log channel messages
-          return messageStore.messages[props.selectedChannel.id] || [];
+          list = messageStore.messages[props.selectedChannel.id] || [];
         }
-        return [];
+
+        return list;
       });
 
 
@@ -92,68 +91,87 @@
         }
       }
 
+      async function fetchUsers() {
+          try {
+              const response = await fetch("http://localhost:8000/users/");
+              const users = await response.json();
+
+              // Store user IDs with their names in userMap
+              userMap.value = users.reduce((map, user) => {
+                  map[user.id] = user.name;
+                  return map;
+              }, {});
+
+              console.log("✅ User map loaded:", userMap.value);
+          } catch (error) {
+              console.error("❌ Failed to fetch users:", error);
+          }
+      }
+      
       function sendMessage() {
-        if (!newMessage.value.trim()) {
-          console.error("Cannot send empty message!");
-          return;
-        }
-
-        const messageData = {
-          senderId: userId.value,
-          receiverId: props.selectedUser?.id,
-          content: newMessage.value,
-        };
-
-        if (props.selectedUser) {
-          sendDirectMessage(props.selectedUser.id, newMessage.value, userId.value);
-
-          if (!messageStore.messages[props.selectedUser.id]) {
-            messageStore.messages[props.selectedUser.id] = [];
+          if (!newMessage.value.trim()) {
+              console.error("Cannot send empty message!");
+              return;
+          }
+          
+          if (props.selectedUser) {
+            const messageData = {
+              senderId: userId.value,
+              receiverId: props.selectedUser?.id,
+              content: newMessage.value,
+            };
+            sendDirectMessage (
+              props.selectedUser.id,
+              newMessage.value,
+              userId.value,
+              "direct"
+            );
+          }
+          
+          if (props.selectedChannel) {
+            sendDirectMessage (
+              props.selectedChannel.id, // use channel ID as receiver ID
+              newMessage.value,
+              userId.value,
+              "channel"
+            );
           }
 
-          messageStore.messages[props.selectedUser.id].push(messageData);
+          newMessage.value = "";  // Clear input, but wait for WebSocket update
         }
 
-        if (props.selectedChannel) {
-        sendMessageToChannel(props.selectedChannel.id, newMessage.value, userId.value);
+        function receiveChannelMessage(message) {
+            console.log("📥 Received real-time channel message:", message);
 
-        if (!messageStore.messages[props.selectedChannel.id]) {
-        messageStore.messages[props.selectedChannel.id] = [];
-    }
+            // Fetch usernames dynamically if the sender is unknown
+            if (!userMap.value[message.sender_id]) {
+              fetchUsers(); 
+            }
 
-    messageStore.messages[props.selectedChannel.id].push({
-      senderId: userId.value,
-      content: newMessage.value,
-    });
-  }
+            if (props.selectedChannel && Number(message.channel_id) === Number(props.selectedChannel.id)) {
+                if (!messageStore.messages[props.selectedChannel.id]) {
+                    messageStore.messages[props.selectedChannel.id] = [];
+                }
 
+                // 🚀 Ensure sender sees their own message, but only from WebSocket
+                messageStore.messages[props.selectedChannel.id].push({
+                    id: message.id,
+                    senderId: message.sender_id,
+                    content: message.text,
+                });
 
-        newMessage.value = "";
-        scrollToBottom();
-      }
-
-      function receiveChannelMessage(message) {
-        console.log("Received channel message:", message);
-        
-        if (props.selectedChannel && message.channel_id === props.selectedChannel.id) {
-          if (!messageStore.messages[props.selectedChannel.id]) {
-            messageStore.messages[props.selectedChannel.id] = reactive([]);
-          }
-
-          messageStore.messages[props.selectedChannel.id].push({
-          senderId: message.sender_id,
-          content: message.text,
-        });
-
-    scrollToBottom();
-      }
-    } 
-
-
+                nextTick(() => scrollToBottom());
+            }
+        }
 
 
       // Delete a message
       async function deleteMessage(messageId) {
+        if (!messageId) {
+          console.warn("Tried to delete a message without an ID.");
+          return;
+        }
+
         try {
           // Determine if it's a direct message or a channel message
           const url = props.selectedUser
@@ -189,10 +207,29 @@
         }
       }
 
-      function getOtherUsername() {
-        return props.selectedUser?.name || "Other user";
-      }
+      function getOtherUsername(message) {
+          if (Number(message.senderId) === Number(userId.value)) {
+              return "Me";  // Show "Me" for messages sent by the logged-in user
+          }
+
+          // For direct messages, look up the receiver's name
+          if (props.selectedUser) {
+              return props.selectedUser?.name || "Loading...";
+          }
+
+
+        //   console.log("userMap:", userMap);
+        // console.log("senderId:", message.senderId);
+        // console.log("userMap.value[senderId]:", userMap.value[message.senderId]);
+
+
         
+          // For channel messages, look up the sender's name in userMap
+          return userMap.value[Number(message.senderId)] || "Loading...";
+      }
+
+
+
       function scrollToBottom() {
         nextTick(() => {
           const container = document.querySelector(".messages");
@@ -209,38 +246,20 @@
         }
       });
 
-      
       watch(() => props.selectedChannel, (newChannel) => {
-        if (newChannel) {
-          console.log(`Switched to channel: ${newChannel.id}`);
-          
-          fetchMessages(newChannel.id, "channel");
-
-          //  Properly close previous WebSocket before opening a new one
-          disconnectWebSocket();
-          connectToChannelWebSocket(newChannel.id, receiveChannelMessage);
-        }
+          if (newChannel) {
+              console.log(`Switched to channel: ${newChannel.id}`);
+              fetchMessages(newChannel.id, "channel");
+          }
       });
-
 
       watch(messages, (newMessages) => {
           scrollToBottom();
       }, { deep: true });
 
       onMounted(() => {
+        fetchUsers();
         connectWebSocket(userId.value);
-
-        // Listen for deleted messages
-        onChannelMessage((message) => {
-          if (message.action === "message_deleted") {
-            if (props.selectedChannel && message.channel_id === props.selectedChannel.id) {
-              // Remove the deleted message from the local state
-              messageStore.messages[props.selectedChannel.id] = messageStore.messages[props.selectedChannel.id].filter(
-                (msg) => msg.id !== message.message_id
-              );
-            }
-          }
-        });
 
         if (props.selectedUser) {
           fetchMessages(props.selectedUser.id, "user");
