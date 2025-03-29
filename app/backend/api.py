@@ -1,10 +1,10 @@
 import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Set
+from typing import Set, Optional
 from urllib import request
 
-from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, APIRouter
+from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -22,7 +22,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 active_connections = {}
-router = APIRouter()
 
 # CORS Middleware
 app.add_middleware(
@@ -146,13 +145,14 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = D
                     receiver_id = message.get("receiver_id")
                     message_text = message.get("content")
 
-                    store_direct_message(db, sender_id, receiver_id, message_text)
+                    new_message = store_direct_message(db, sender_id, receiver_id, message_text)
 
                     response_data = {
                         "type": "direct",
+                        "id": new_message["id"],
                         "sender_id": sender_id,
                         "receiver_id": receiver_id,
-                        "content": message_text
+                        "content": message_text,
                     }
 
                     # Send to receiver
@@ -512,11 +512,14 @@ async def delete_channel_message(
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    db.delete(message)
-    db.commit()
+    channel_id = message.channel_id
+    message_id = message.id
 
     # Notify all clients in the channel
     await notify_message_deleted(message.channel_id, message_id)
+
+    db.delete(message)
+    db.commit()
 
     return {"message": "Message deleted successfully"}
 
@@ -527,19 +530,26 @@ async def notify_message_deleted(channel_id: int, message_id: int):
             try:
                 await websocket.send_json({
                     "action": "message_deleted",
+                    "type": "channel",
                     "channel_id": channel_id,
                     "message_id": message_id,
                 })
+                print("Notified a client")
             except Exception as e:
                 print(f"Failed to notify client: {e}")
+    else:
+        print("No active connections found for this channel")
+
 
 
 @app.delete("/direct-messages/{message_id}")
 async def delete_direct_message(
         message_id: int,
         db: Session = Depends(get_db),
-        user_id: int = Header(None)
+        user_id: Optional[str] = Header(None)
 ):
+    user_id = int(user_id)
+
     # Check if admin
     current_user = db.query(User).filter(User.id == user_id).first()
     if not current_user:
@@ -552,7 +562,22 @@ async def delete_direct_message(
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
+    receiver_id = message.receiver_id
+    sender_id = message.sender_id
+
     db.delete(message)
     db.commit()
+
+    # Broadcast deletion to both sender and receiver
+    for uid in [sender_id, receiver_id]:
+        if uid in active_connections:
+            for ws in active_connections[uid]:
+                await ws.send_json({
+                    "action": "message_deleted",
+                    "type": "direct",
+                    "message_id": message_id,
+                    "sender_id": sender_id,
+                    "receiver_id": receiver_id,
+                })
 
     return {"message": "Direct message deleted successfully"}

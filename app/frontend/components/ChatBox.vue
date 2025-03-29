@@ -126,12 +126,6 @@
               userId.value,
               "direct"
             );
-
-            if (!messageStore.messages[props.selectedUser.id]) {
-              messageStore.messages[props.selectedUser.id] = [];
-            }
-
-            messageStore.messages[props.selectedUser.id].push(messageData);
           }
           
           if (props.selectedChannel) {
@@ -171,12 +165,13 @@
         }
 
 
-
-
-
-
       // Delete a message
       async function deleteMessage(messageId) {
+        if (!messageId) {
+          console.warn("Tried to delete a message without an ID.");
+          return;
+        }
+
         try {
           // Determine if it's a direct message or a channel message
           const url = props.selectedUser

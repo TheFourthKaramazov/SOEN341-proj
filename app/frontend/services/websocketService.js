@@ -28,10 +28,19 @@ export function connectWebSocket(userId) {
         const message = JSON.parse(event.data);
 
         if (message.action === "message_deleted") {
-          messageStore.deleteMessage(
-            message.receiver_id || message.sender_id,
-            message.message_id
-          );
+
+          if (message.type === "direct") {
+            const currentUserId = Number(localStorage.getItem("userId"));
+            const conversationId = (message.receiver_id === currentUserId)
+              ? message.sender_id
+              : message.receiver_id;
+        
+            messageStore.deleteMessage(message.message_id, conversationId);
+          }
+
+          if (message.type === "channel" && Number(message.channel_id)) {
+            messageStore.deleteMessage(message.message_id, message.channel_id);
+          }
           return;
         }
 
