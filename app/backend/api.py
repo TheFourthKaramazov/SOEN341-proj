@@ -1,16 +1,25 @@
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Set
 from urllib import request
-
+from uuid import uuid4
+from PIL import Image
 from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from app.backend.database import SessionLocal, init_db  
+from app.backend.database import SessionLocal, init_db, get_db
 from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel
 from app.backend.schemas import ChannelResponse, UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
+from typing import List
+
+
+image_dir = os.path.join(os.path.dirname(__file__), "media", "images")
+os.makedirs(image_dir, exist_ok=True)
 
 # Initialize FastAPI
 @asynccontextmanager
@@ -18,7 +27,13 @@ async def lifespan(app: FastAPI):
     init_db()
     yield  
 
-app = FastAPI(lifespan=lifespan) 
+app = FastAPI(lifespan=lifespan)
+app.mount(
+    "/media/images",
+    StaticFiles(directory=os.path.join(os.path.dirname(__file__), "media", "images")),
+    name="images"
+)
+
 active_connections = {}
 router = APIRouter()
 
@@ -37,11 +52,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from typing import List
-from app.backend.database import get_db
-from app.backend.models import ChannelMessage
 
 channel_connections = {}
 
@@ -516,3 +526,19 @@ async def delete_direct_message(
     db.commit()
 
     return {"message": "Direct message deleted successfully"}
+
+@app.post("/upload")
+async def upload_image(file: UploadFile = File(...)):
+    file_id = f"{uuid4().hex}.png"
+    file_path = os.path.join(image_dir, file_id)
+
+    contents = await file.read()
+    with open("temp_upload", "wb") as temp_file:
+        temp_file.write(contents)
+
+    with Image.open("temp_upload") as img:
+        img.save(file_path, format="PNG")
+
+    os.remove("temp_upload")
+
+    return {"filename": file_id}

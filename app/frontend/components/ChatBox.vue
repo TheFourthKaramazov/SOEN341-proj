@@ -8,7 +8,18 @@
           <strong>
             {{ Number(msg.senderId) === Number(userId) ? "Me" : getOtherUsername()}}:
           </strong>
-          {{ msg.content }}
+
+          <div v-if="isImageMessage(msg.content)">
+            <img 
+              :src="getImageUrl(msg.content)" 
+              alt="Chat Image" 
+              class="chat-image"
+            />
+          </div>
+
+          <div v-else>
+            {{ msg.content }}
+          </div>
           <!-- Delete button only visible for admins -->
           <button v-if="isAdmin" @click="deleteMessage(msg.id)" class="trash-button">Delete</button>
         </div>
@@ -116,17 +127,17 @@
         }
 
         if (props.selectedChannel) {
-        sendMessageToChannel(props.selectedChannel.id, newMessage.value, userId.value);
+              sendMessageToChannel(props.selectedChannel.id, newMessage.value, userId.value);
 
-        if (!messageStore.messages[props.selectedChannel.id]) {
-        messageStore.messages[props.selectedChannel.id] = [];
-    }
+              if (!messageStore.messages[props.selectedChannel.id]) {
+              messageStore.messages[props.selectedChannel.id] = [];
+          }
 
-    messageStore.messages[props.selectedChannel.id].push({
-      senderId: userId.value,
-      content: newMessage.value,
-    });
-  }
+          messageStore.messages[props.selectedChannel.id].push({
+            senderId: userId.value,
+            content: newMessage.value,
+          });
+        }
 
 
         newMessage.value = "";
@@ -142,16 +153,13 @@
           }
 
           messageStore.messages[props.selectedChannel.id].push({
-          senderId: message.sender_id,
-          content: message.text,
-        });
+            senderId: message.sender_id,
+            content: message.text,
+          });
 
-    scrollToBottom();
-      }
-    } 
-
-
-
+          scrollToBottom();
+        }
+      } 
 
       // Delete a message
       async function deleteMessage(messageId) {
@@ -190,6 +198,16 @@
         }
       }
 
+      function isImageMessage(content) {
+        return content.startsWith("[IMAGE:") && content.endsWith("]");
+      }
+
+      function getImageUrl(content) {
+		// Extract the filename from the image tag
+        const filename = content.slice(7, -1);
+        return `http://localhost:8000/media/images/${filename}`;
+      }
+
       function getOtherUsername() {
         return props.selectedUser?.name || "Other user";
       }
@@ -206,38 +224,39 @@
       function insertFile() {
         const fileInput = document.createElement("input");
         fileInput.type = "file";
+        fileInput.accept = "image/*";
         fileInput.style.display = "none";
-      
-        // listen for file inputs
+
         fileInput.addEventListener("change", async (event) => {
           const selectedFile = event.target.files[0];
           if (selectedFile) {
             console.log("Selected file:", selectedFile);
-      
-            // create an object (form data) 
+
             const formData = new FormData();
             formData.append("file", selectedFile);
-      
+            formData.append("uploader_id", userId.value);
+
             try {
-              // send the form data object via an axios.post request
               const response = await axios.post("http://localhost:8000/upload", formData, {
                 headers: {
                   "Content-Type": "multipart/form-data",
                 },
               });
-      
-              console.log("File uploaded successfully:", response.data);
+
+              const { filename } = response.data;
+              console.log("File uploaded successfully:", filename);
+
+              // Set the message input to the image tag
+              newMessage.value = `[IMAGE:${filename}]`;
+
             } catch (error) {
               console.error("Error uploading file:", error);
             }
           }
         });
-      
-        // this will open the file explorer when clicking on the button
+
         document.body.appendChild(fileInput);
         fileInput.click();
-      
-        // Remove the input once done using it
         fileInput.remove();
       }
 
@@ -301,6 +320,8 @@
         getOtherUsername,
         scrollToBottom,
         insertFile,
+        isImageMessage,
+        getImageUrl,
       };
       
     },
@@ -421,6 +442,13 @@
       background: none;
       padding-right : 10px;
       margin-right : 10px;
+    }
+
+    .chat-image {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 10px;
+      margin-top: 5px;
     }
 
 </style>
