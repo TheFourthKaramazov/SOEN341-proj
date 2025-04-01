@@ -17,6 +17,16 @@
             />
           </div>
 
+          <div v-else-if="isVideoMessage(msg.content)">
+            <video 
+              controls
+              class="chat-video"
+            >
+              <source :src="getVideoUrl(msg.content)" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </div>
+
           <div v-else>
             {{ msg.content }}
           </div>
@@ -234,6 +244,32 @@
       function getOtherUsername() {
         return props.selectedUser?.name || "Other user";
       }
+
+      function isVideoMessage(content) {
+        return content.startsWith("[VIDEO:") && content.endsWith("]");
+      }
+
+      function getVideoUrl(content) {
+        const filename = content.slice(7, -1);
+        return `http://localhost:8000/media/videos/${filename}`;
+      }
+
+      async function uploadVideo(file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        
+        try {
+          const response = await axios.post("http://localhost:8000/upload-video", formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+          return response.data.filename;
+        } catch (error) {
+          console.error("Error uploading video:", error);
+          throw error;
+        }
+      }
         
       function scrollToBottom() {
         nextTick(() => {
@@ -247,43 +283,58 @@
       function insertFile() {
         const fileInput = document.createElement("input");
         fileInput.type = "file";
-        fileInput.accept = "image/*";
+        fileInput.accept = "image/*, video/*";
         fileInput.style.display = "none";
+        fileInput.multiple = false;
 
         fileInput.addEventListener("change", async (event) => {
           const selectedFile = event.target.files[0];
-          if (selectedFile) {
-            console.log("Selected file:", selectedFile);
+          if (!selectedFile) return;
 
+          try {
+            let fileTag;
             const formData = new FormData();
             formData.append("file", selectedFile);
-            formData.append("uploader_id", userId.value);
 
-            try {
-              const response = await axios.post("http://localhost:8000/upload", formData, {
-                headers: {
-                  "Content-Type": "multipart/form-data",
-                },
-              });
+            if (selectedFile.type.startsWith("image/")) {
+              // Handle image upload
+              const response = await axios.post("http://localhost:8000/upload", 
+                formData, 
+                {
+                  headers: {
+                    "Content-Type": "multipart/form-data",
+                  },
+                }
+              );
+              fileTag = `[IMAGE:${response.data.filename}]`;
+            } else if (selectedFile.type.startsWith("video/")) {
+                const response = await axios.post(
+                  "http://localhost:8000/upload-video",
+                  formData,
+                  {
+                    headers: {
+                      "Content-Type": "multipart/form-data",
+                    },
+                  }
+                );
+                fileTag = `[VIDEO:${response.data.filename}]`;
+              } 
+              else {
+                console.warn("Unsupported file type:", selectedFile.type);
+                return;
+              }
 
-              const { filename } = response.data;
-              console.log("File uploaded successfully:", filename);
-
-              // Set the message input to the image tag
-              newMessage.value = `[IMAGE:${filename}]`;
-
+              newMessage.value = fileTag;
             } catch (error) {
               console.error("Error uploading file:", error);
+              alert(`Upload failed: ${error.response?.data?.detail || error.message}`);
             }
-          }
-        });
+          });
       
         // this will open the file explorer when clicking on the button
         document.body.appendChild(fileInput);
         fileInput.click();
-      
-        // Remove the input once done using it
-        fileInput.remove();
+        document.body.removeChild(fileInput);
       }
 
 
@@ -331,6 +382,9 @@
         insertFile,
         isImageMessage,
         getImageUrl,
+        isVideoMessage,
+        getVideoUrl,
+        uploadVideo,
       };
     },
   };
@@ -453,6 +507,13 @@
     }
 
     .chat-image {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 10px;
+      margin-top: 5px;
+    }
+
+    .chat-video {
       max-width: 100%;
       max-height: 200px;
       border-radius: 10px;

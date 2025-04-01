@@ -19,18 +19,32 @@ from typing import List
 image_dir = "./app/backend/media/images"
 os.makedirs(image_dir, exist_ok=True)
 
+video_dir = "./app/backend/media/videos"
+os.makedirs(video_dir, exist_ok=True)
+
 # Initialize FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     yield
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    max_upload_size=100 * 1024 * 1024  # 100MB limit
+)
+
 app.mount(
     "/media/images",
     StaticFiles(directory="./app/backend/media/images"),
     name="images"
 )
+
+app.mount(
+    "/media/videos",
+    StaticFiles(directory="./app/backend/media/videos"),
+    name="videos"
+)
+
 active_connections = {}
 
 # CORS Middleware
@@ -601,3 +615,32 @@ async def upload_image(file: UploadFile = File(...)):
     os.remove("temp_upload")
 
     return {"filename": file_id}
+
+@app.post("/upload-video")
+async def upload_video(file: UploadFile = File(...)):
+    # Validate file size
+    max_size = 50 * 1024 * 1024
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    
+    if file_size > max_size:
+        raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+    
+    # Validate file type
+    allowed_types = ["video/mp4", "video/webm", "video/quicktime"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Unsupported video format")
+    
+    # Generate filename
+    file_ext = os.path.splitext(file.filename)[1]
+    file_id = f"{uuid4().hex}{file_ext}"
+    file_path = os.path.join(video_dir, file_id)
+
+    try:
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        return {"filename": file_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
