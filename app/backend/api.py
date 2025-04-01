@@ -16,7 +16,7 @@ from app.backend.models import User, DirectMessage, Channel, ChannelMessage, Use
 from app.backend.schemas import ChannelResponse, UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
 from typing import List
 
-image_dir = os.path.join(os.path.dirname(__file__), "media", "images")
+image_dir = "./app/backend/media/images"
 os.makedirs(image_dir, exist_ok=True)
 
 # Initialize FastAPI
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.mount(
     "/media/images",
-    StaticFiles(directory=os.path.join(os.path.dirname(__file__), "media", "images")),
+    StaticFiles(directory="./app/backend/media/images"),
     name="images"
 )
 active_connections = {}
