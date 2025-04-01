@@ -22,7 +22,7 @@
               controls
               class="chat-video"
             >
-              <source :src="getVideoUrl(msg.content)" type="video/mp4">
+              <source :src="getVideoUrl(msg.content)" :type="getVideoMimeType(msg.content)">
               Your browser does not support the video tag.
             </video>
           </div>
@@ -238,6 +238,10 @@
       function getImageUrl(content) {
 		// Extract the filename from the image tag
         const filename = content.slice(7, -1);
+        if (!isValidFilename(filename)) {
+          console.error("Invalid image filename");
+          return "";
+        }
         return `http://localhost:8000/media/images/${filename}`;
       }
 
@@ -251,7 +255,30 @@
 
       function getVideoUrl(content) {
         const filename = content.slice(7, -1);
+        if (!isValidFilename(filename)) {
+          console.error("Invalid video filename");
+          return "";
+        }
         return `http://localhost:8000/media/videos/${filename}`;
+      }
+
+
+      function getVideoMimeType(content) {
+        const filename = content.slice(7, -1);
+        const extension = filename.split('.').pop().toLowerCase();
+        return {
+          'mp4': 'video/mp4',
+          'webm': 'video/webm',
+          'mov': 'video/quicktime'
+        }[extension] || 'video/mp4'; // Default fallback
+      }
+
+      function isValidFilename(filename) {
+        const validExtensions = ['png', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'mov'];
+        const extension = filename.split('.').pop().toLowerCase();
+        return validExtensions.includes(extension) && 
+              !filename.includes('/') && 
+              !filename.includes('..');
       }
 
       async function uploadVideo(file) {
@@ -385,6 +412,7 @@
         isVideoMessage,
         getVideoUrl,
         uploadVideo,
+        getVideoMimeType,
       };
     },
   };

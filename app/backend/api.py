@@ -8,7 +8,7 @@ from uuid import uuid4
 from PIL import Image
 from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from app.backend.database import SessionLocal, init_db, get_db
@@ -644,3 +644,26 @@ async def upload_video(file: UploadFile = File(...)):
         return {"filename": file_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+    
+@app.get("/media/images/{file_id}")
+async def get_image(file_id: str):
+    file_path = os.path.join(image_dir, file_id)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    return FileResponse(
+        file_path,
+        headers={
+            "Cache-Control": "public, max-age=86400"  # 24hr cache
+        }
+    )
+
+@app.get("/media/videos/{file_id}")
+async def get_video(file_id: str):
+    file_path = os.path.join(video_dir, file_id)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    return FileResponse(file_path, media_type="video/mp4")
