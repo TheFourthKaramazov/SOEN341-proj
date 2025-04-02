@@ -691,7 +691,6 @@ async def upload_image(file: UploadFile = File(...), uploader_id: int = Form(...
 
     return {"filename": file_id}
 
-
 def generate_media_id(length=6):
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
