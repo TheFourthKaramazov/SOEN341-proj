@@ -1,18 +1,20 @@
 import json
 import logging
 import os
+import secrets
+import string
 from contextlib import asynccontextmanager
+from io import BytesIO
 from typing import Set, Optional
 from urllib import request
-from uuid import uuid4
 from PIL import Image
-from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from app.backend.database import SessionLocal, init_db, get_db
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel, Image as ImageModel
 from app.backend.schemas import ChannelResponse, UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
 from typing import List
 
@@ -601,16 +603,30 @@ async def delete_direct_message(
     return {"message": "Direct message deleted successfully"}
 
 @app.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
-    file_id = f"{uuid4().hex}.png"
+async def upload_image(file: UploadFile = File(...), uploader_id: int = Form(...)):
+    file_id = f"{generate_media_id()}.png"
     file_path = os.path.join(image_dir, file_id)
 
     contents = await file.read()
     with open("temp_upload", "wb") as temp_file:
         temp_file.write(contents)
 
+    with Image.open(BytesIO(contents)) as img:
+        width, height = img.size
+
     with Image.open("temp_upload") as img:
         img.save(file_path, format="PNG")
+
+    db = SessionLocal()
+    db_image = ImageModel(
+        filename=file_id,
+        uploader_id=uploader_id,
+        width=width,
+        height=height,
+    )
+    db.add(db_image)
+    db.commit()
+    db.refresh(db_image)
 
     os.remove("temp_upload")
 
@@ -634,7 +650,7 @@ async def upload_video(file: UploadFile = File(...)):
     
     # Generate filename
     file_ext = os.path.splitext(file.filename)[1]
-    file_id = f"{uuid4().hex}{file_ext}"
+    file_id = f"{generate_media_id()}{file_ext}"
     file_path = os.path.join(video_dir, file_id)
 
     try:
@@ -644,3 +660,7 @@ async def upload_video(file: UploadFile = File(...)):
         return {"filename": file_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+
+def generate_media_id(length=6):
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))

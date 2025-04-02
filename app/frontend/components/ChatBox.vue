@@ -295,6 +295,7 @@
             let fileTag;
             const formData = new FormData();
             formData.append("file", selectedFile);
+            formData.append("uploader_id", localStorage.getItem("userId"));
 
             if (selectedFile.type.startsWith("image/")) {
               // Handle image upload
