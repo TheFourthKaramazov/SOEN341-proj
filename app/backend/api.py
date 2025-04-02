@@ -10,7 +10,7 @@ from urllib import request
 from PIL import Image
 from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from app.backend.database import SessionLocal, init_db, get_db
@@ -648,6 +648,49 @@ async def upload_video(file: UploadFile = File(...)):
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Unsupported video format")
     
+    # Generate filename
+    file_ext = os.path.splitext(file.filename)[1]
+    file_id = f"{generate_media_id()}{file_ext}"
+    file_path = os.path.join(video_dir, file_id)
+
+    try:
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        return {"filename": file_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+
+@app.get("/media/images/{file_id}")
+async def get_image(file_id: str):
+    file_path = os.path.join(image_dir, file_id)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    return FileResponse(
+        file_path,
+        headers={
+            "Cache-Control": "public, max-age=86400"  # 24hr cache
+        }
+    )
+
+@app.post("/upload-video")
+async def upload_video(file: UploadFile = File(...)):
+    # Validate file size
+    max_size = 50 * 1024 * 1024
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+
+    if file_size > max_size:
+        raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+
+    # Validate file type
+    allowed_types = ["video/mp4", "video/webm", "video/quicktime"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Unsupported video format")
+
     # Generate filename
     file_ext = os.path.splitext(file.filename)[1]
     file_id = f"{generate_media_id()}{file_ext}"
