@@ -81,3 +81,21 @@ class UserChannel(Base):
     # relationships to user and channel
     user = relationship("User", back_populates="channels")
     channel = relationship("Channel", back_populates="users")
+
+class Image(Base):
+    __tablename__ = "images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String, unique=True, index=True)
+    uploader_id = Column(Integer)
+    width = Column(Integer)
+    height = Column(Integer)
+
+class Video(Base):
+    __tablename__ = "videos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String, unique=True, index=True)
+    uploader_id = Column(Integer)
+    width = Column(Integer)
+    height = Column(Integer)

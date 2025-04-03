@@ -5,8 +5,31 @@
           v-for="(msg, index) in messages" 
           :key="index" 
           :class="messageClasses(msg)">
-          <strong>{{ getOtherUsername(msg) }}:</strong>
-          {{ msg.content }}
+          <strong>
+            {{ Number(msg.senderId) === Number(userId) ? "Me" : getOtherUsername()}}:
+          </strong>
+
+          <div v-if="isImageMessage(msg.content)">
+            <img 
+              :src="getImageUrl(msg.content)" 
+              alt="Chat Image" 
+              class="chat-image"
+            />
+          </div>
+
+          <div v-else-if="isVideoMessage(msg.content)">
+            <video 
+              controls
+              class="chat-video"
+            >
+              <source :src="getVideoUrl(msg.content)" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </div>
+
+          <div v-else>
+            {{ msg.content }}
+          </div>
           <!-- Delete button only visible for admins -->
           <button v-if="isAdmin" @click="deleteMessage(msg.id)" class="trash-button">Delete</button>
         </div>
@@ -14,6 +37,7 @@
   
       <!-- ✅ FIXED: Ensure message input shows when a user or channel is selected -->
       <div class="message-input" v-if="selectedUser || selectedChannel">
+        <button class = "insertFileButton" @click="insertFile" >+</button>
         <input v-model="newMessage" @keyup.enter="sendMessage" placeholder="Type a message..." />
         <button @click="sendMessage" :disabled="!newMessage.trim()">Send</button>
       </div>
@@ -207,29 +231,46 @@
         }
       }
 
-      function getOtherUsername(message) {
-          if (Number(message.senderId) === Number(userId.value)) {
-              return "Me";  // Show "Me" for messages sent by the logged-in user
-          }
-
-          // For direct messages, look up the receiver's name
-          if (props.selectedUser) {
-              return props.selectedUser?.name || "Loading...";
-          }
-
-
-        //   console.log("userMap:", userMap);
-        // console.log("senderId:", message.senderId);
-        // console.log("userMap.value[senderId]:", userMap.value[message.senderId]);
-
-
-        
-          // For channel messages, look up the sender's name in userMap
-          return userMap.value[Number(message.senderId)] || "Loading...";
+      function isImageMessage(content) {
+        return content.startsWith("[IMAGE:") && content.endsWith("]");
       }
 
+      function getImageUrl(content) {
+		// Extract the filename from the image tag
+        const filename = content.slice(7, -1);
+        return `http://localhost:8000/media/images/${filename}`;
+      }
 
+      function getOtherUsername() {
+        return props.selectedUser?.name || "Other user";
+      }
 
+      function isVideoMessage(content) {
+        return content.startsWith("[VIDEO:") && content.endsWith("]");
+      }
+
+      function getVideoUrl(content) {
+        const filename = content.slice(7, -1);
+        return `http://localhost:8000/media/videos/${filename}`;
+      }
+
+      async function uploadVideo(file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        
+        try {
+          const response = await axios.post("http://localhost:8000/upload-video", formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+          return response.data.filename;
+        } catch (error) {
+          console.error("Error uploading video:", error);
+          throw error;
+        }
+      }
+        
       function scrollToBottom() {
         nextTick(() => {
           const container = document.querySelector(".messages");
@@ -238,6 +279,65 @@
           }
         });
       }
+
+      function insertFile() {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "image/*, video/*";
+        fileInput.style.display = "none";
+        fileInput.multiple = false;
+
+        fileInput.addEventListener("change", async (event) => {
+          const selectedFile = event.target.files[0];
+          if (!selectedFile) return;
+
+          try {
+            let fileTag;
+            const formData = new FormData();
+            formData.append("file", selectedFile);
+            formData.append("uploader_id", localStorage.getItem("userId"));
+
+            if (selectedFile.type.startsWith("image/")) {
+              // Handle image upload
+              const response = await axios.post("http://localhost:8000/upload", 
+                formData, 
+                {
+                  headers: {
+                    "Content-Type": "multipart/form-data",
+                  },
+                }
+              );
+              fileTag = `[IMAGE:${response.data.filename}]`;
+            } else if (selectedFile.type.startsWith("video/")) {
+                const response = await axios.post(
+                  "http://localhost:8000/upload-video",
+                  formData,
+                  {
+                    headers: {
+                      "Content-Type": "multipart/form-data",
+                    },
+                  }
+                );
+                fileTag = `[VIDEO:${response.data.filename}]`;
+              } 
+              else {
+                console.warn("Unsupported file type:", selectedFile.type);
+                return;
+              }
+
+              newMessage.value = fileTag;
+            } catch (error) {
+              console.error("Error uploading file:", error);
+              alert(`Upload failed: ${error.response?.data?.detail || error.message}`);
+            }
+          });
+      
+        // this will open the file explorer when clicking on the button
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+      }
+
 
       watch(() => props.selectedUser, (newUser) => {
         if (newUser) {
@@ -280,6 +380,12 @@
         receiveChannelMessage,
         getOtherUsername,
         scrollToBottom,
+        insertFile,
+        isImageMessage,
+        getImageUrl,
+        isVideoMessage,
+        getVideoUrl,
+        uploadVideo,
       };
     },
   };
@@ -392,6 +498,27 @@
 
     .trash-button:hover {
       color: #a30000;
+    }
+
+    .insertFileButton{
+      font-size : 100px;
+      background: none;
+      padding-right : 10px;
+      margin-right : 10px;
+    }
+
+    .chat-image {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 10px;
+      margin-top: 5px;
+    }
+
+    .chat-video {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 10px;
+      margin-top: 5px;
     }
 
 </style>

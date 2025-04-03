@@ -1,17 +1,28 @@
 import json
 import logging
+import os
+import secrets
+import string
 from contextlib import asynccontextmanager
+from io import BytesIO
 from typing import Set, Optional
 from urllib import request
-
-from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException
+from PIL import Image
+from fastapi import FastAPI, Depends, Header, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from app.backend.database import SessionLocal, init_db
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel
+from app.backend.database import SessionLocal, init_db, get_db
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel, Image as ImageModel
 from app.backend.schemas import ChannelResponse, UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
+from typing import List
 
+image_dir = "./app/backend/media/images"
+os.makedirs(image_dir, exist_ok=True)
+
+video_dir = "./app/backend/media/videos"
+os.makedirs(video_dir, exist_ok=True)
 
 # Initialize FastAPI
 @asynccontextmanager
@@ -19,8 +30,23 @@ async def lifespan(app: FastAPI):
     init_db()
     yield
 
+app = FastAPI(
+    lifespan=lifespan,
+    max_upload_size=100 * 1024 * 1024  # 100MB limit
+)
 
-app = FastAPI(lifespan=lifespan)
+app.mount(
+    "/media/images",
+    StaticFiles(directory="./app/backend/media/images"),
+    name="images"
+)
+
+app.mount(
+    "/media/videos",
+    StaticFiles(directory="./app/backend/media/videos"),
+    name="videos"
+)
+
 active_connections = {}
 
 # CORS Middleware
@@ -39,12 +65,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from typing import List
-from app.backend.database import get_db
-from app.backend.models import ChannelMessage
 
 channel_connections = {}
 
@@ -581,3 +601,96 @@ async def delete_direct_message(
                 })
 
     return {"message": "Direct message deleted successfully"}
+
+@app.post("/upload")
+async def upload_image(file: UploadFile = File(...), uploader_id: int = Form(...)):
+    file_id = f"{generate_media_id()}.png"
+    file_path = os.path.join(image_dir, file_id)
+
+    contents = await file.read()
+    with open("temp_upload", "wb") as temp_file:
+        temp_file.write(contents)
+
+    with Image.open(BytesIO(contents)) as img:
+        width, height = img.size
+
+    with Image.open("temp_upload") as img:
+        img.save(file_path, format="PNG")
+
+    db = SessionLocal()
+    db_image = ImageModel(
+        filename=file_id,
+        uploader_id=uploader_id,
+        width=width,
+        height=height,
+    )
+    db.add(db_image)
+    db.commit()
+    db.refresh(db_image)
+
+    os.remove("temp_upload")
+
+    return {"filename": file_id}
+
+@app.post("/upload-video")
+async def upload_video(file: UploadFile = File(...)):
+    # Validate file size
+    max_size = 50 * 1024 * 1024
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    
+    if file_size > max_size:
+        raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+    
+    # Validate file type
+    allowed_types = ["video/mp4", "video/webm", "video/quicktime"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Unsupported video format")
+    
+    # Generate filename
+    file_ext = os.path.splitext(file.filename)[1]
+    file_id = f"{generate_media_id()}{file_ext}"
+    file_path = os.path.join(video_dir, file_id)
+
+    try:
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        return {"filename": file_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+
+@app.post("/upload")
+async def upload_image(file: UploadFile = File(...), uploader_id: int = Form(...)):
+    file_id = f"{generate_media_id()}.png"
+    file_path = os.path.join(image_dir, file_id)
+
+    contents = await file.read()
+    with open("temp_upload", "wb") as temp_file:
+        temp_file.write(contents)
+
+    with Image.open(BytesIO(contents)) as img:
+        width, height = img.size
+
+    with Image.open("temp_upload") as img:
+        img.save(file_path, format="PNG")
+
+    db = SessionLocal()
+    db_image = ImageModel(
+        filename=file_id,
+        uploader_id=uploader_id,
+        width=width,
+        height=height,
+    )
+    db.add(db_image)
+    db.commit()
+    db.refresh(db_image)
+
+    os.remove("temp_upload")
+
+    return {"filename": file_id}
+
+def generate_media_id(length=6):
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
