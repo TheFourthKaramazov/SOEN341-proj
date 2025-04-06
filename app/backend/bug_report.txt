@@ -1,0 +1,50 @@
+# Bug Report: Python Static Analysis
+
+**Tool Used:** `pylint`  
+**Command:** `pylint app/backend > pylint-report.txt`  
+**Date:** 2025-04-05
+
+---
+
+## Summary of Findings
+
+| Type     | Count      | Examples                                                              |
+|----------|------------|-----------------------------------------------------------------------|
+| Errors   | 2 (fixed)  | `E0102` (duplicate function), `E4703` (modifying set during iteration) |
+| Warnings | ~60+       | Broad exception catching, unused variables, logging f-string usage     |
+| Style    | ~50+       | Long lines, missing docstrings, trailing whitespace, import ordering  |
+
+---
+
+## Fixes Applied
+
+### Critical Issues Resolved
+- `E0102`: Duplicate Function  
+  Removed the second `upload_image()` route in `api.py` that caused the redefinition.
+
+- `E4703`: Modifying Set While Iterating  
+  Updated `broadcast_channel_update()` to use `for connection in global_channel_connections.copy()`.
+
+---
+
+## Before vs After
+
+| Metric          | Before       | After        |
+|------------------|--------------|--------------|
+| `pylint` Score   | 7.14 / 10    | 7.28 / 10    |
+| Critical Errors  | 2            | 0            |
+
+---
+
+## Attached Files
+
+- `pylint-report.txt` (before fixes)  
+- `pylint-report-after.txt` (after fixes)
+
+---
+
+## Acceptance Criteria Met
+
+- [x] Bug finder report generated and saved  
+- [x] Critical/high issues resolved  
+- [x] Summary of tool usage included in the report

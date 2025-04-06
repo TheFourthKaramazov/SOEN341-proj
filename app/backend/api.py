@@ -382,7 +382,7 @@ async def websocket_global_channels(websocket: WebSocket, db: Session = Depends(
 
 # Function to broadcast global channel updates
 async def broadcast_channel_update(message: str):
-    for connection in global_channel_connections:
+    for connection in global_channel_connections.copy():
         try:
             await connection.send_text(message)
         except Exception as e:
@@ -660,36 +660,6 @@ async def upload_video(file: UploadFile = File(...)):
         return {"filename": file_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
-
-@app.post("/upload")
-async def upload_image(file: UploadFile = File(...), uploader_id: int = Form(...)):
-    file_id = f"{generate_media_id()}.png"
-    file_path = os.path.join(image_dir, file_id)
-
-    contents = await file.read()
-    with open("temp_upload", "wb") as temp_file:
-        temp_file.write(contents)
-
-    with Image.open(BytesIO(contents)) as img:
-        width, height = img.size
-
-    with Image.open("temp_upload") as img:
-        img.save(file_path, format="PNG")
-
-    db = SessionLocal()
-    db_image = ImageModel(
-        filename=file_id,
-        uploader_id=uploader_id,
-        width=width,
-        height=height,
-    )
-    db.add(db_image)
-    db.commit()
-    db.refresh(db_image)
-
-    os.remove("temp_upload")
-
-    return {"filename": file_id}
 
 def generate_media_id(length=6):
     alphabet = string.ascii_letters + string.digits
