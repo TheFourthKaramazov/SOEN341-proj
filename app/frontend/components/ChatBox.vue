@@ -6,7 +6,7 @@
           :key="index" 
           :class="messageClasses(msg)">
           <strong>
-            {{ Number(msg.senderId) === Number(userId) ? "Me" : getOtherUsername()}}:
+            {{ Number(msg.senderId) === Number(userId) ? "Me" : getOtherUsername(msg)}}:
           </strong>
 
           <div v-if="isImageMessage(msg.content)">
@@ -241,8 +241,18 @@
         return `http://localhost:8000/media/images/${filename}`;
       }
 
-      function getOtherUsername() {
-        return props.selectedUser?.name || "Other user";
+      function getOtherUsername(message) {
+          if (Number(message.senderId) === Number(userId.value)) {
+              return "Me";
+          }
+
+          // For direct messages, look up the receiver's name
+          if (props.selectedUser) {
+              return props.selectedUser?.name || "Loading...";
+          }
+
+          // For channel messages, look up the sender's name in userMap
+          return userMap.value[Number(message.senderId)] || "Loading...";
       }
 
       function isVideoMessage(content) {
