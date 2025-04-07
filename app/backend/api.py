@@ -5,6 +5,7 @@ import secrets
 import string
 from contextlib import asynccontextmanager
 from io import BytesIO
+import subprocess
 from typing import Set, Optional
 from urllib import request
 from PIL import Image
@@ -14,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from app.backend.database import SessionLocal, init_db, get_db
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel, Image as ImageModel
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage, UserChannel, Image as ImageModel, Video as VideoModel
 from app.backend.schemas import ChannelResponse, UserCreate, DirectMessageCreate, ChannelCreate, ChannelMessageCreate
 from typing import List
 
@@ -633,7 +634,8 @@ async def upload_image(file: UploadFile = File(...), uploader_id: int = Form(...
     return {"filename": file_id}
 
 @app.post("/upload-video")
-async def upload_video(file: UploadFile = File(...)):
+async def upload_video(file: UploadFile = File(...), uploader_id: int = Form(...), db: Session = Depends(get_db) ):
+        
     # Validate file size
     max_size = 50 * 1024 * 1024
     file.file.seek(0, 2)
@@ -657,10 +659,40 @@ async def upload_video(file: UploadFile = File(...)):
         contents = await file.read()
         with open(file_path, "wb") as f:
             f.write(contents)
+        
+        width, height = get_video_dimensions(file_path)
+
+        db_video = VideoModel(
+            filename=file_id,
+            uploader_id=uploader_id,
+            width=width,
+            height=height
+        )
+        db.add(db_video)
+        db.commit()
+
         return {"filename": file_id}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+    finally:
+        db.close()
 
 def generate_media_id(length=6):
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+def get_video_dimensions(file_path: str) -> tuple[int, int]:
+    """Try multiple methods to get video dimensions"""
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height',
+            '-of', 'csv=p=0',
+            file_path
+        ]
+        result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, text=True)
+        return tuple(map(int, result.stdout.strip().split(',')))
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
