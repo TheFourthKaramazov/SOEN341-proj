@@ -46,9 +46,15 @@
                     </video>
 
                     <div class="overlay-text">
-                      {{ media.direction === 'incoming' 
-                        ? `Sent from ${getUserNameById(media.other_user_id)} at ${formatTimestamp(media.timestamp)}`
-                        : `Sent to ${getUserNameById(media.other_user_id)} at ${formatTimestamp(media.timestamp)}` }}
+                      <template v-if="media.source === 'dm'">
+                        {{ media.direction === 'incoming' 
+                          ? `Sent from ${getUserNameById(media.other_user_id)} at ${formatTimestamp(media.timestamp)}`
+                          : `Sent to ${getUserNameById(media.other_user_id)} at ${formatTimestamp(media.timestamp)}` }}
+                      </template>
+
+                      <template v-else-if="media.source === 'channel'">
+                        Shared in #{{ media.channel_name }} by {{ getUserNameById(media.other_user_id) }} at {{ formatTimestamp(media.timestamp) }}
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -69,7 +75,7 @@
                 Unsubscribe
               </button>
             </div>
-            
+
             <!-- Show ChatBox if we are subscribed to a selected channel OR chatting with a user -->
             <ChatBox 
               v-if="(selectedChannel && isSubscribed) || selectedUser" 

@@ -701,62 +701,98 @@ def get_video_dimensions(file_path: str) -> tuple[int, int]:
 def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
     media_items = []
 
-    # Fetch image messages
-    image_messages = (
-        db.query(DirectMessage)
-        .filter(
-            DirectMessage.text.startswith("[IMAGE:"),
-            (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
-        )
-        .order_by(DirectMessage.timestamp.desc())
-        .limit(10)
-        .all()
-    )
+    # Fetch subscribed channels
+    subscribed_channel_ids = [
+        uc.channel_id for uc in db.query(UserChannel).filter(UserChannel.user_id == user_id).all()
+    ]
 
-    for msg in image_messages:
-        if msg.text.startswith("[IMAGE:") and "]" in msg.text:
+    # Direct Messages: Images
+    dm_image_msgs = db.query(DirectMessage).filter(
+        DirectMessage.text.startswith("[IMAGE:"),
+        (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
+    ).order_by(DirectMessage.timestamp.desc()).limit(10).all()
+
+    for msg in dm_image_msgs:
+        if "[IMAGE:" in msg.text:
             filename = msg.text.split("[IMAGE:")[1].split("]")[0]
-            image = db.query(ImageModel).filter(ImageModel.filename == filename).first()
-            if image:
+            img = db.query(ImageModel).filter_by(filename=filename).first()
+            if img:
                 media_items.append({
                     "type": "image",
                     "filename": filename,
-                    "width": image.width,
-                    "height": image.height,
+                    "width": img.width,
+                    "height": img.height,
+                    "timestamp": msg.timestamp.isoformat(),
                     "direction": "incoming" if msg.sender_id != user_id else "outgoing",
                     "other_user_id": msg.receiver_id if msg.sender_id == user_id else msg.sender_id,
-                    "timestamp": msg.timestamp.isoformat(),
+                    "source": "dm"
                 })
 
-    # Fetch video messages
-    video_messages = (
-        db.query(DirectMessage)
-        .filter(
-            DirectMessage.text.startswith("[VIDEO:"),
-            (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
-        )
-        .order_by(DirectMessage.timestamp.desc())
-        .limit(10)
-        .all()
-    )
+    # Direct Messages: Videos
+    dm_video_msgs = db.query(DirectMessage).filter(
+        DirectMessage.text.startswith("[VIDEO:"),
+        (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
+    ).order_by(DirectMessage.timestamp.desc()).limit(10).all()
 
-    for msg in video_messages:
-        if msg.text.startswith("[VIDEO:") and "]" in msg.text:
+    for msg in dm_video_msgs:
+        if "[VIDEO:" in msg.text:
             filename = msg.text.split("[VIDEO:")[1].split("]")[0]
-            video = db.query(VideoModel).filter(VideoModel.filename == filename).first()
-            if video:
+            vid = db.query(VideoModel).filter_by(filename=filename).first()
+            if vid:
                 media_items.append({
                     "type": "video",
                     "filename": filename,
-                    "width": video.width,
-                    "height": video.height,
+                    "width": vid.width,
+                    "height": vid.height,
+                    "timestamp": msg.timestamp.isoformat(),
                     "direction": "incoming" if msg.sender_id != user_id else "outgoing",
                     "other_user_id": msg.receiver_id if msg.sender_id == user_id else msg.sender_id,
-                    "timestamp": msg.timestamp.isoformat(),
+                    "source": "dm"
                 })
 
-    # Sort combined media by timestamp descending
-    media_items.sort(key=lambda x: x["timestamp"], reverse=True)
+    # Channel Messages
+    if subscribed_channel_ids:
+        channel_msgs = db.query(ChannelMessage).filter(
+            ChannelMessage.channel_id.in_(subscribed_channel_ids),
+            ChannelMessage.text.startswith("[")
+        ).order_by(ChannelMessage.timestamp.desc()).limit(20).all()
+
+        for msg in channel_msgs:
+            if "[IMAGE:" in msg.text:
+                filename = msg.text.split("[IMAGE:")[1].split("]")[0]
+                img = db.query(ImageModel).filter_by(filename=filename).first()
+                channel = db.query(Channel).filter_by(id=msg.channel_id).first()
+                if img:
+                    media_items.append({
+                        "type": "image",
+                        "filename": filename,
+                        "width": img.width,
+                        "height": img.height,
+                        "timestamp": msg.timestamp.isoformat(),
+                        "direction": "channel",
+                        "other_user_id": msg.sender_id,
+                        "source": "channel",
+                        "channel_id": msg.channel_id,
+                        "channel_name": channel.name if channel else "Unknown",
+                    })
+
+            elif "[VIDEO:" in msg.text:
+                filename = msg.text.split("[VIDEO:")[1].split("]")[0]
+                vid = db.query(VideoModel).filter_by(filename=filename).first()
+                if vid:
+                    media_items.append({
+                        "type": "video",
+                        "filename": filename,
+                        "width": vid.width,
+                        "height": vid.height,
+                        "timestamp": msg.timestamp.isoformat(),
+                        "direction": "channel",
+                        "other_user_id": msg.sender_id,
+                        "source": "channel"
+                    })
+
+    # Final sort by timestamp
+    media_items.sort(key=lambda m: m["timestamp"], reverse=True)
 
     return media_items
 
