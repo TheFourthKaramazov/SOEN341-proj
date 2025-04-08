@@ -696,3 +696,45 @@ def get_video_dimensions(file_path: str) -> tuple[int, int]:
         return tuple(map(int, result.stdout.strip().split(',')))
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
+
+@app.get("/homepage-images/{user_id}")
+def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
+    messages = db.query(DirectMessage).filter(
+        (DirectMessage.sender_id == user_id) | 
+        (DirectMessage.receiver_id == user_id)
+    ).all()
+
+    image_filenames = set()
+    for msg in messages:
+        if msg.text and "[IMAGE:" in msg.text:
+            parts = msg.text.split("[IMAGE:")
+            for part in parts[1:]:
+                if "]" in part:
+                    filename = part.split("]")[0]
+                    image_filenames.add(filename)
+
+    image_objects = db.query(ImageModel).filter(ImageModel.filename.in_(image_filenames)).all()
+
+    return [
+        {
+            "filename": img.filename,
+            "uploader_id": img.uploader_id,
+            "width": img.width,
+            "height": img.height,
+        }
+        for img in image_objects
+    ]
+
+"""Homepage testing with random image"""
+@app.get("/random-image")
+def get_random_image(db: Session = Depends(get_db)):
+    image = db.query(ImageModel).order_by(ImageModel.id.desc()).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="No images found")
+
+    return {
+        "filename": image.filename,
+        "width": image.width,
+        "height": image.height,
+        "uploader_id": image.uploader_id,
+    }

@@ -1,5 +1,8 @@
 <template>
     <div class="sidebar">
+
+      <h2 class="nav-button" @click="goHome()">Home</h2>
+
       <h2>Channels</h2>
       <ul>
         <li
@@ -107,6 +110,10 @@ export default {
         console.error("Error fetching channels:", error);
       }
     },
+    goHome() {
+      this.$emit("selectChannel", null);
+      this.$emit("selectUser", null);
+    },
     selectChannel(channel) {
       console.log("Selected channel:", channel);
       this.$emit("selectChannel", channel);
@@ -210,6 +217,28 @@ export default {
 
 .admin-button.delete-button:hover {
   background-color: #cc0000;
+}
+
+.nav-button {
+  background-color: #2c3e50;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.05s ease, box-shadow 0.1s ease;
+  box-shadow: 0 4px 0 #1a252f;
+}
+
+.nav-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #1a252f;
+}
+
+.nav-button:hover {
+  background-color: #3b4755;
 }
 
 </style>

@@ -14,9 +14,31 @@
             <h1>Welcome, {{ userName }}</h1>
             <button @click="logout" class="logout-btn">Logout</button>
 
-            <h4 v-if="selectedChannel">You have selected channel: {{ selectedChannel.name }}</h4>
-            <h4 v-else-if="selectedUser">You are chatting with: {{ selectedUser.name }}</h4>
-            <h4 v-else>Select a channel or user from the sidebar.</h4>
+            <h4 v-if="selectedChannel">
+              You have selected channel: {{ selectedChannel.name }}
+            </h4>
+
+            <h4 v-else-if="selectedUser">
+              You are chatting with: {{ selectedUser.name }}
+            </h4>
+
+            <div v-else>
+              <h4>Select a channel or user from the sidebar.</h4>
+
+              <div v-if="testImage" style="margin-top: 20px;">
+                <h5>Shared Image Preview:</h5>
+                <img
+                  :src="`http://localhost:8000/media/images/${testImage.filename}`"
+                  :alt="testImage.filename"
+                  :width="testImage.width"
+                  :height="testImage.height"
+                  style="max-width: 100%; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"
+                />
+              </div>
+
+              <p v-else style="margin-top: 20px;">No image loaded yet.</p>
+            </div>
+
 
             <ChatBox 
                 v-if="selectedChannel || selectedUser" 
@@ -38,6 +60,7 @@
     components: { Sidebar, ChatBox },
     data() {
       return {
+        testImage: null,
         channels: [],
         users: [],
         selectedChannel: null,
@@ -55,10 +78,15 @@
     async mounted() {
       await this.fetchChannels();
       await this.fetchUsers();
+
+      try {
+        const response = await axios.get('http://localhost:8000/random-image');
+        this.testImage = response.data;
+      } catch (error) {
+        console.error("Could not load image:", error);
+      }
     },
     methods: {
-
-
       async fetchChannels() {
         const response = await axios.get("http://localhost:8000/channels/", {
           headers: { "user-id": this.userId },
