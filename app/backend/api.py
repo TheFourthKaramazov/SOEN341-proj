@@ -699,31 +699,33 @@ def get_video_dimensions(file_path: str) -> tuple[int, int]:
 
 @app.get("/homepage-images/{user_id}")
 def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
-    messages = db.query(DirectMessage).filter(
-        (DirectMessage.sender_id == user_id) | 
-        (DirectMessage.receiver_id == user_id)
-    ).all()
+    messages = (
+        db.query(DirectMessage)
+        .filter(
+            DirectMessage.text.startswith("[IMAGE:"),
+            (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
+        )
+        .order_by(DirectMessage.timestamp.desc())
+        .limit(10)
+        .all()
+    )
 
-    image_filenames = set()
+    images = []
     for msg in messages:
-        if msg.text and "[IMAGE:" in msg.text:
-            parts = msg.text.split("[IMAGE:")
-            for part in parts[1:]:
-                if "]" in part:
-                    filename = part.split("]")[0]
-                    image_filenames.add(filename)
+        if msg.text.startswith("[IMAGE:") and "]" in msg.text:
+            filename = msg.text.split("[IMAGE:")[1].split("]")[0]
+            image = db.query(ImageModel).filter(ImageModel.filename == filename).first()
+            if image:
+                images.append({
+                    "filename": filename,
+                    "width": image.width,
+                    "height": image.height,
+                    "direction": "incoming" if msg.sender_id != user_id else "outgoing",
+                    "other_user_id": msg.receiver_id if msg.sender_id == user_id else msg.sender_id,
+                    "timestamp": msg.timestamp.isoformat(),
+                })
 
-    image_objects = db.query(ImageModel).filter(ImageModel.filename.in_(image_filenames)).all()
-
-    return [
-        {
-            "filename": img.filename,
-            "uploader_id": img.uploader_id,
-            "width": img.width,
-            "height": img.height,
-        }
-        for img in image_objects
-    ]
+    return images
 
 
 @app.get("/test-random-images")

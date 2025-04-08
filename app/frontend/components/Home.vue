@@ -26,15 +26,20 @@
 
               <h4>Select a channel or user from the sidebar.</h4>
 
-              <div v-if="testImages.length">
+              <div v-if="relevantImages.length">
                 <div class="image-grid">
-                  <img
-                    v-for="img in testImages"
-                    :key="img.filename"
-                    :src="`http://localhost:8000/media/images/${img.filename}`"
-                    :alt="img.filename"
-                    class="grid-image"
-                  />
+                  <div v-for="img in relevantImages" :key="img.filename" class="image-wrapper">
+                    <img
+                      :src="`http://localhost:8000/media/images/${img.filename}`"
+                      :alt="img.filename"
+                      class="grid-image"
+                    />
+                    <div class="overlay-text">
+                      {{ img.direction === 'incoming' 
+                        ? `Sent from ${getUserNameById(img.other_user_id)} at ${formatTimestamp(img.timestamp)}`
+                        : `Sent to ${getUserNameById(img.other_user_id)} at ${formatTimestamp(img.timestamp)}` }}
+                    </div>
+                  </div>
                 </div>
               </div>
               <p v-else>No images available.</p>
@@ -63,7 +68,8 @@
     components: { Sidebar, ChatBox },
     data() {
       return {
-        testImages: [],
+        relevantImages: [],
+        userMap: {},
         channels: [],
         users: [],
         selectedChannel: null,
@@ -84,25 +90,25 @@
     async mounted() {
       await this.fetchChannels();
       await this.fetchUsers();
-      await this.loadImages();
+      await this.loadRelevantImages();
 
       watch(
         () => this.uiStore.refreshHomeImages,
         (val) => {
           if (val && !this.selectedChannel && !this.selectedUser) {
-            this.loadImages();
+            this.loadRelevantImages();
             this.uiStore.acknowledgeHomeRefresh();
           }
         }
       );
     },
     methods: {
-      async loadImages() {
+      async loadRelevantImages() {
         try {
-          const response = await axios.get('http://localhost:8000/test-random-images');
-          this.testImages = response.data;
+          const response = await axios.get(`http://localhost:8000/homepage-images/${this.userId}`);
+          this.relevantImages = response.data;
         } catch (error) {
-          console.error("Could not load test images:", error);
+          console.error("Could not load relevant images:", error);
         }
       },
       async fetchChannels() {
@@ -129,9 +135,14 @@
         localStorage.removeItem("userId");
         localStorage.removeItem("userName");
       },
-      handleRefresh() {
-        this.$refs.homeComponent?.loadImages?.();
-      },  
+      getUserNameById(userId) {
+        const user = this.users.find(u => u.id === userId);
+        return user ? user.name : "Unknown";
+      },
+      formatTimestamp(isoString) {
+        const date = new Date(isoString);
+        return date.toLocaleString();
+      },
     }
   };
   </script>
@@ -193,6 +204,7 @@
     cursor: pointer;
     transition: background-color 0.3s ease, transform 0.2s ease;
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+    z-index: 1000;
   }
 
   .logout-btn:hover {
@@ -214,4 +226,21 @@
     break-inside: avoid;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
+
+  .image-wrapper {
+    position: relative;
+    break-inside: avoid;
+  }
+
+  .overlay-text {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+
   </style>
