@@ -36,6 +36,7 @@
 <script>
 import axios from "axios";
 import { useUserStore } from "../store/userStore";
+import { useUIStore } from '../store/uiStore';
 import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 
@@ -113,6 +114,9 @@ export default {
     goHome() {
       this.$emit("selectChannel", null);
       this.$emit("selectUser", null);
+
+      const uiStore = useUIStore();
+      uiStore.triggerHomeRefresh();
     },
     selectChannel(channel) {
       console.log("Selected channel:", channel);

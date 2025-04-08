@@ -725,16 +725,19 @@ def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
         for img in image_objects
     ]
 
-"""Homepage testing with random image"""
-@app.get("/random-image")
-def get_random_image(db: Session = Depends(get_db)):
-    image = db.query(ImageModel).order_by(ImageModel.id.desc()).first()
-    if not image:
-        raise HTTPException(status_code=404, detail="No images found")
 
-    return {
-        "filename": image.filename,
-        "width": image.width,
-        "height": image.height,
-        "uploader_id": image.uploader_id,
+@app.get("/test-random-images")
+def get_test_images(db: Session = Depends(get_db)):
+
+    print("✅ /test-random-images route hit")
+
+    images = db.query(ImageModel).order_by(ImageModel.id.desc()).limit(10).all()
+    return [
+    {
+        "filename": img.filename,
+        "width": img.width,
+        "height": img.height,
+        "uploader_id": img.uploader_id,
     }
+    for img in images
+    ]

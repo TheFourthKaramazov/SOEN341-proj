@@ -23,20 +23,21 @@
             </h4>
 
             <div v-else>
+
               <h4>Select a channel or user from the sidebar.</h4>
 
-              <div v-if="testImage" style="margin-top: 20px;">
-                <h5>Shared Image Preview:</h5>
-                <img
-                  :src="`http://localhost:8000/media/images/${testImage.filename}`"
-                  :alt="testImage.filename"
-                  :width="testImage.width"
-                  :height="testImage.height"
-                  style="max-width: 100%; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"
-                />
+              <div v-if="testImages.length">
+                <div class="image-grid">
+                  <img
+                    v-for="img in testImages"
+                    :key="img.filename"
+                    :src="`http://localhost:8000/media/images/${img.filename}`"
+                    :alt="img.filename"
+                    class="grid-image"
+                  />
+                </div>
               </div>
-
-              <p v-else style="margin-top: 20px;">No image loaded yet.</p>
+              <p v-else>No images available.</p>
             </div>
 
 
@@ -55,12 +56,14 @@
   import Sidebar from "./Sidebar.vue";
   import ChatBox from "./ChatBox.vue";
   import { useUserStore } from "../store/userStore";
-  
+  import { useUIStore } from '../store/uiStore';
+  import { onMounted, watch } from 'vue';
+
   export default {
     components: { Sidebar, ChatBox },
     data() {
       return {
-        testImage: null,
+        testImages: [],
         channels: [],
         users: [],
         selectedChannel: null,
@@ -73,20 +76,35 @@
       },
       userName() {
         return useUserStore().userName || "Guest";
-      }
+      },
+      uiStore() {
+        return useUIStore();
+      },
     },
     async mounted() {
       await this.fetchChannels();
       await this.fetchUsers();
+      await this.loadImages();
 
-      try {
-        const response = await axios.get('http://localhost:8000/random-image');
-        this.testImage = response.data;
-      } catch (error) {
-        console.error("Could not load image:", error);
-      }
+      watch(
+        () => this.uiStore.refreshHomeImages,
+        (val) => {
+          if (val && !this.selectedChannel && !this.selectedUser) {
+            this.loadImages();
+            this.uiStore.acknowledgeHomeRefresh();
+          }
+        }
+      );
     },
     methods: {
+      async loadImages() {
+        try {
+          const response = await axios.get('http://localhost:8000/test-random-images');
+          this.testImages = response.data;
+        } catch (error) {
+          console.error("Could not load test images:", error);
+        }
+      },
       async fetchChannels() {
         const response = await axios.get("http://localhost:8000/channels/", {
           headers: { "user-id": this.userId },
@@ -110,8 +128,10 @@
         userStore.setUser(null, null);
         localStorage.removeItem("userId");
         localStorage.removeItem("userName");
-        }
-      
+      },
+      handleRefresh() {
+        this.$refs.homeComponent?.loadImages?.();
+      },  
     }
   };
   </script>
@@ -142,41 +162,56 @@
   }
 
   h1 {
-  background-color: rgba(255, 255, 255, 0.1); /* Subtle box */
-  padding: 15px;
-  /* Center align text */
-  text-align: center;
-  border-radius: 8px;
-  margin-bottom: 20px; /* Adds spacing below h1 */
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
-}
+    background-color: rgba(255, 255, 255, 0.1); /* Subtle box */
+    padding: 15px;
+    /* Center align text */
+    text-align: center;
+    border-radius: 8px;
+    margin-bottom: 20px; /* Adds spacing below h1 */
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+  }
 
-h4 {
-  margin-top: 20px; /* Adds spacing above h4 */
-  margin-bottom: 20px;
-}
+  h4 {
+    margin-top: 20px; /* Adds spacing above h4 */
+    margin-bottom: 20px;
+  }
 
 
+    /* Style for the logout button */
   /* Style for the logout button */
-/* Style for the logout button */
-.logout-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background-color: #222732; /* fixed color typo */
-  color: white;
-  padding: 12px 20px;
-  font-size: 18px;
-  font-weight: bold;
-  border: none; /* remove default border */
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
-}
+  .logout-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #222732; /* fixed color typo */
+    color: white;
+    padding: 12px 20px;
+    font-size: 18px;
+    font-weight: bold;
+    border: none; /* remove default border */
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+  }
 
-.logout-btn:hover {
-  background-color: #485269; /* slightly lighter on hover for visual feedback */
-  transform: translateY(-2px); /* subtle lift effect */
-}
+  .logout-btn:hover {
+    background-color: #485269; /* slightly lighter on hover for visual feedback */
+    transform: translateY(-2px); /* subtle lift effect */
+  }
+
+  .image-grid {
+    column-count: 3;
+    column-gap: 1rem;
+    padding: 1rem;
+  }
+
+  .grid-image {
+    width: 100%;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    display: block;
+    break-inside: avoid;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
   </style>
