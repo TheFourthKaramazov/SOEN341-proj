@@ -777,3 +777,25 @@ def get_test_images(db: Session = Depends(get_db)):
     }
     for img in images
     ]
+
+@app.post("/subscribe/{user_id}/{channel_id}")
+def subscribe_to_channel(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    exists = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
+    if not exists:
+        new_sub = UserChannel(user_id=user_id, channel_id=channel_id)
+        db.add(new_sub)
+        db.commit()
+    return {"subscribed": True}
+
+@app.delete("/unsubscribe/{user_id}/{channel_id}")
+def unsubscribe_from_channel(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    sub = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
+    if sub:
+        db.delete(sub)
+        db.commit()
+    return {"subscribed": False}
+
+@app.get("/is-subscribed/{user_id}/{channel_id}")
+def is_subscribed(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    exists = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
+    return {"subscribed": bool(exists)}

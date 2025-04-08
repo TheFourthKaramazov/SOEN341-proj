@@ -56,13 +56,28 @@
               <p v-else>No images available.</p>
             </div>
 
-
-            <ChatBox 
-                v-if="selectedChannel || selectedUser" 
-                :selectedUser="selectedUser"
-                :selectedChannel="selectedChannel"
-            />
+            <!-- Subscribe button -->
+            <div v-if="selectedChannel && !isSubscribed">
+              <button class="subscribe-button" @click="subscribeToChannel">
+                Subscribe to this channel
+              </button>
             </div>
+
+            <!-- Unsubscribe button -->
+            <div v-if="selectedChannel && isSubscribed">
+              <button class="unsubscribe-button" @click="unsubscribeFromChannel">
+                Unsubscribe
+              </button>
+            </div>
+            
+            <!-- Show ChatBox if we are subscribed to a selected channel OR chatting with a user -->
+            <ChatBox 
+              v-if="(selectedChannel && isSubscribed) || selectedUser" 
+              :selectedChannel="selectedChannel"
+              :selectedUser="selectedUser"
+            />
+
+          </div>
       </div>
     </div>
   </template>
@@ -85,6 +100,7 @@
         users: [],
         selectedChannel: null,
         selectedUser: null,
+        isSubscribed: false,
       };
     },
     computed: {
@@ -135,6 +151,7 @@
       selectChannel(channel) {
         this.selectedChannel = channel;
         this.selectedUser = null;
+        this.checkSubscription();
       },
       selectUser(user) {
         this.selectedUser = user;
@@ -154,6 +171,27 @@
         const date = new Date(isoString);
         return date.toLocaleString();
       },
+      async subscribeToChannel() {
+        if (!this.selectedChannel || !this.userId) return;
+        await axios.post(`http://localhost:8000/subscribe/${this.userId}/${this.selectedChannel.id}`);
+        this.checkSubscription();
+      },
+
+      async unsubscribeFromChannel() {
+        if (!this.selectedChannel || !this.userId) return;
+        await axios.delete(`http://localhost:8000/unsubscribe/${this.userId}/${this.selectedChannel.id}`);
+        this.checkSubscription();
+      },
+
+      async checkSubscription() {
+        if (!this.selectedChannel || !this.userId) {
+          this.isSubscribed = false;
+          return;
+        }
+        const res = await axios.get(`http://localhost:8000/is-subscribed/${this.userId}/${this.selectedChannel.id}`);
+        this.isSubscribed = res.data.subscribed;
+      },
+
     }
   };
   </script>
@@ -256,5 +294,35 @@
     font-size: 12px;
     border-radius: 4px;
   }
+
+  .subscribe-button,
+  .unsubscribe-button {
+    margin-top: 10px;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background-color: #1db954;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+  }
+
+  .subscribe-button:hover,
+  .unsubscribe-button:hover {
+    background-color: #17a74a;
+    transform: translateY(-1px);
+  }
+
+  .unsubscribe-button {
+    background-color: #cc0000;
+  }
+
+  .unsubscribe-button:hover {
+    background-color: #a30000;
+  }
+
 
   </style>
