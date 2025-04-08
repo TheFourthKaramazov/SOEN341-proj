@@ -699,7 +699,10 @@ def get_video_dimensions(file_path: str) -> tuple[int, int]:
 
 @app.get("/homepage-images/{user_id}")
 def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
-    messages = (
+    media_items = []
+
+    # Fetch image messages
+    image_messages = (
         db.query(DirectMessage)
         .filter(
             DirectMessage.text.startswith("[IMAGE:"),
@@ -710,13 +713,13 @@ def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
-    images = []
-    for msg in messages:
+    for msg in image_messages:
         if msg.text.startswith("[IMAGE:") and "]" in msg.text:
             filename = msg.text.split("[IMAGE:")[1].split("]")[0]
             image = db.query(ImageModel).filter(ImageModel.filename == filename).first()
             if image:
-                images.append({
+                media_items.append({
+                    "type": "image",
                     "filename": filename,
                     "width": image.width,
                     "height": image.height,
@@ -725,7 +728,38 @@ def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
                     "timestamp": msg.timestamp.isoformat(),
                 })
 
-    return images
+    # Fetch video messages
+    video_messages = (
+        db.query(DirectMessage)
+        .filter(
+            DirectMessage.text.startswith("[VIDEO:"),
+            (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
+        )
+        .order_by(DirectMessage.timestamp.desc())
+        .limit(10)
+        .all()
+    )
+
+    for msg in video_messages:
+        if msg.text.startswith("[VIDEO:") and "]" in msg.text:
+            filename = msg.text.split("[VIDEO:")[1].split("]")[0]
+            video = db.query(VideoModel).filter(VideoModel.filename == filename).first()
+            if video:
+                media_items.append({
+                    "type": "video",
+                    "filename": filename,
+                    "width": video.width,
+                    "height": video.height,
+                    "direction": "incoming" if msg.sender_id != user_id else "outgoing",
+                    "other_user_id": msg.receiver_id if msg.sender_id == user_id else msg.sender_id,
+                    "timestamp": msg.timestamp.isoformat(),
+                })
+
+    # Sort combined media by timestamp descending
+    media_items.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    return media_items
+
 
 
 @app.get("/test-random-images")

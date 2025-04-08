@@ -28,16 +28,27 @@
 
               <div v-if="relevantImages.length">
                 <div class="image-grid">
-                  <div v-for="img in relevantImages" :key="img.filename" class="image-wrapper">
+                  <div v-for="media in relevantImages" :key="media.filename" class="image-wrapper">
                     <img
-                      :src="`http://localhost:8000/media/images/${img.filename}`"
-                      :alt="img.filename"
+                      v-if="media.type === 'image'"
+                      :src="`http://localhost:8000/media/images/${media.filename}`"
+                      :alt="media.filename"
                       class="grid-image"
                     />
+                    
+                    <video
+                      v-else-if="media.type === 'video'"
+                      controls
+                      class="grid-image"
+                    >
+                      <source :src="`http://localhost:8000/media/videos/${media.filename}`" type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+
                     <div class="overlay-text">
-                      {{ img.direction === 'incoming' 
-                        ? `Sent from ${getUserNameById(img.other_user_id)} at ${formatTimestamp(img.timestamp)}`
-                        : `Sent to ${getUserNameById(img.other_user_id)} at ${formatTimestamp(img.timestamp)}` }}
+                      {{ media.direction === 'incoming' 
+                        ? `Sent from ${getUserNameById(media.other_user_id)} at ${formatTimestamp(media.timestamp)}`
+                        : `Sent to ${getUserNameById(media.other_user_id)} at ${formatTimestamp(media.timestamp)}` }}
                     </div>
                   </div>
                 </div>
@@ -220,12 +231,15 @@
 
   .grid-image {
     width: 100%;
+    max-height: 300px;
+    object-fit: cover;
     margin-bottom: 1rem;
     border-radius: 8px;
     display: block;
     break-inside: avoid;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
+
 
   .image-wrapper {
     position: relative;
