@@ -41,5 +41,5 @@ def test_upload_image():
 
     print("Image upload test passed.")
 
-    # Clean up test image file (optional)
+    # Clean up test image file
     os.remove(filepath)

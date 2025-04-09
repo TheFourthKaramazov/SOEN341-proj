@@ -12,8 +12,8 @@ client = TestClient(app)
 def sample_video_file(tmp_path):
     """Create a small dummy MP4 file for testing."""
     video_path = tmp_path / "test_video.mp4"
-    # Instead of creating a real video, we'll use a mock video file for testing
-    # Just a placeholder file for the test
+    # Mock video file for testing
+    # Placeholder file for the test
     with open(video_path, "wb") as f:
         f.write(b"dummy video content")
     return open(video_path, "rb")
