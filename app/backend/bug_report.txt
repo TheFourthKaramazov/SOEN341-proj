@@ -31,7 +31,7 @@
 
 | Metric          | Before       | After        |
 |------------------|--------------|--------------|
-| `pylint` Score   | 7.14 / 10    | 7.28 / 10    |
+| `pylint` Score   | 7.57 / 10    | 7.28 / 10    |
 | Critical Errors  | 2            | 0            |
 
 ---
@@ -40,6 +40,7 @@
 
 - `pylint-report.txt` (before fixes)  
 - `pylint-report-after.txt` (after fixes)
+- `pylint-report-after.txt2` (after fixes)
 
 ---
 

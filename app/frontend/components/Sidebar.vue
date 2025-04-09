@@ -1,5 +1,8 @@
 <template>
     <div class="sidebar">
+
+      <h2 class="nav-button" @click="goHome()">Home</h2>
+
       <h2>Channels</h2>
       <ul>
         <li
@@ -33,16 +36,11 @@
 <script>
 import axios from "axios";
 import { useUserStore } from "../store/userStore";
+import { useUIStore } from '../store/uiStore';
 import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 
 export default {
-
-  watch: {
-  loggedInUserId(newId) {
-    this.fetchUsers();
-  },
-},
   props: ["selectedChannel", "selectedUser"],
   setup() {
     const router = useRouter();
@@ -75,11 +73,8 @@ export default {
     };
   },
   computed: {
-    loggedInUserId() {
-      return useUserStore().userId;
-    },
     filteredUsers() {
-      return this.users.filter(user => user.id !== this.loggedInUserId);
+      return this.users.filter(user => user.id !== this.userId);
     }
   },
   async mounted() {
@@ -98,14 +93,21 @@ export default {
     },
     async fetchChannels() {
       try {
-        const userId = this.loggedInUserId;
         const response = await axios.get("http://localhost:8000/channels/", {
-          headers: { "user-id": userId },
+          headers: { "user-id": this.userId },
         });
+
         this.channels = response.data;
       } catch (error) {
         console.error("Error fetching channels:", error);
       }
+    },
+    goHome() {
+      this.$emit("selectChannel", null);
+      this.$emit("selectUser", null);
+
+      const uiStore = useUIStore();
+      uiStore.triggerHomeRefresh();
     },
     selectChannel(channel) {
       console.log("Selected channel:", channel);
@@ -210,6 +212,28 @@ export default {
 
 .admin-button.delete-button:hover {
   background-color: #cc0000;
+}
+
+.nav-button {
+  background-color: #2c3e50;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.05s ease, box-shadow 0.1s ease;
+  box-shadow: 0 4px 0 #1a252f;
+}
+
+.nav-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #1a252f;
+}
+
+.nav-button:hover {
+  background-color: #3b4755;
 }
 
 </style>
