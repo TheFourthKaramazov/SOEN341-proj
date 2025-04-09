@@ -41,12 +41,6 @@ import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 
 export default {
-
-  watch: {
-  loggedInUserId(newId) {
-    this.fetchUsers();
-  },
-},
   props: ["selectedChannel", "selectedUser"],
   setup() {
     const router = useRouter();
@@ -79,11 +73,8 @@ export default {
     };
   },
   computed: {
-    loggedInUserId() {
-      return useUserStore().userId;
-    },
     filteredUsers() {
-      return this.users.filter(user => user.id !== this.loggedInUserId);
+      return this.users.filter(user => user.id !== this.userId);
     }
   },
   async mounted() {
@@ -102,10 +93,10 @@ export default {
     },
     async fetchChannels() {
       try {
-        const userId = this.loggedInUserId;
         const response = await axios.get("http://localhost:8000/channels/", {
-          headers: { "user-id": userId },
+          headers: { "user-id": this.userId },
         });
+
         this.channels = response.data;
       } catch (error) {
         console.error("Error fetching channels:", error);
