@@ -699,6 +699,7 @@ def get_video_dimensions(file_path: str) -> tuple[int, int]:
 
 @app.get("/homepage-images/{user_id}")
 def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
+    """Fetches the latest images and videos from direct messages and channels."""
     media_items = []
 
     # Fetch subscribed channels
@@ -734,6 +735,7 @@ def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
         (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
     ).order_by(DirectMessage.timestamp.desc()).limit(10).all()
 
+    # meta data update
     for msg in dm_video_msgs:
         if "[VIDEO:" in msg.text:
             filename = msg.text.split("[VIDEO:")[1].split("]")[0]
@@ -800,8 +802,9 @@ def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
 
 @app.get("/test-random-images")
 def get_test_images(db: Session = Depends(get_db)):
+    """Fetches the latest 10 images from the database."""
 
-    print("✅ /test-random-images route hit")
+    print(" /test-random-images route hit")
 
     images = db.query(ImageModel).order_by(ImageModel.id.desc()).limit(10).all()
     return [
@@ -816,6 +819,7 @@ def get_test_images(db: Session = Depends(get_db)):
 
 @app.post("/subscribe/{user_id}/{channel_id}")
 def subscribe_to_channel(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    """Subscribe a user to a channel."""
     exists = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
     if not exists:
         new_sub = UserChannel(user_id=user_id, channel_id=channel_id)
@@ -825,6 +829,7 @@ def subscribe_to_channel(user_id: int, channel_id: int, db: Session = Depends(ge
 
 @app.delete("/unsubscribe/{user_id}/{channel_id}")
 def unsubscribe_from_channel(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    """Unsubscribe a user from a channel."""
     sub = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
     if sub:
         db.delete(sub)
@@ -833,5 +838,6 @@ def unsubscribe_from_channel(user_id: int, channel_id: int, db: Session = Depend
 
 @app.get("/is-subscribed/{user_id}/{channel_id}")
 def is_subscribed(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    """Check if a user is subscribed to a channel."""
     exists = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
     return {"subscribed": bool(exists)}

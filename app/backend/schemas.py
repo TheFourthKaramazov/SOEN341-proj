@@ -34,6 +34,7 @@ class ChannelMessageCreate(BaseModel):
     text: str
 
 class ChannelResponse(BaseModel):
+    """Schema for channel response."""
     id: int
     name: str
     is_public: bool

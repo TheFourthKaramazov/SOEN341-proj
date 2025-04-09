@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.backend.base import Base 
+from app.backend.models import User, DirectMessage, Channel, ChannelMessage
 
 
 
@@ -9,12 +10,11 @@ from app.backend.base import Base
 DATABASE_URL = "sqlite:///./app/backend/database.db" 
 
 
-
+# Create a new SQLite database engine
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-from app.backend.models import User, DirectMessage, Channel, ChannelMessage
-
+# start session 
 def get_db():
     """Provides a database session to API endpoints."""
     db = SessionLocal()
@@ -24,7 +24,7 @@ def get_db():
         db.close()
 
 
-
+# Initialize the database
 def init_db(force_reset=False):
     """Initializes the database without dropping tables unless explicitly requested."""
     if force_reset:
