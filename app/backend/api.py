@@ -271,13 +271,30 @@ async def websocket_channel_endpoint(
         if not active_connections[channel_id]:
             del active_connections[channel_id]
 
-
 # retrieve Users
 @app.get("/users/")
 def get_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return [{"id": user.id, "name": user.username} for user in users]
 
+# Create User
+@app.post("/users/")
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.username == user.username).first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    new_user = User(username=user.username, password_hash=user.password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {"id": new_user.id, "username": new_user.username}
+
+# Send Direct Message
+@app.post("/messages/")
+def send_direct_message(msg: DirectMessageCreate, db: Session = Depends(get_db)):
+    new_msg = store_direct_message(db, msg.sender_id, msg.receiver_id, msg.text)
+    return {"message": new_msg}
 
 # store Direct Messages
 def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: str):
