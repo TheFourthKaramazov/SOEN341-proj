@@ -696,3 +696,142 @@ def get_video_dimensions(file_path: str) -> tuple[int, int]:
         return tuple(map(int, result.stdout.strip().split(',')))
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
+
+@app.get("/homepage-images/{user_id}")
+def get_homepage_images(user_id: int, db: Session = Depends(get_db)):
+    media_items = []
+
+    # Fetch subscribed channels
+    subscribed_channel_ids = [
+        uc.channel_id for uc in db.query(UserChannel).filter(UserChannel.user_id == user_id).all()
+    ]
+
+    # Direct Messages: Images
+    dm_image_msgs = db.query(DirectMessage).filter(
+        DirectMessage.text.startswith("[IMAGE:"),
+        (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
+    ).order_by(DirectMessage.timestamp.desc()).limit(10).all()
+
+    for msg in dm_image_msgs:
+        if "[IMAGE:" in msg.text:
+            filename = msg.text.split("[IMAGE:")[1].split("]")[0]
+            img = db.query(ImageModel).filter_by(filename=filename).first()
+            if img:
+                media_items.append({
+                    "type": "image",
+                    "filename": filename,
+                    "width": img.width,
+                    "height": img.height,
+                    "timestamp": msg.timestamp.isoformat(),
+                    "direction": "incoming" if msg.sender_id != user_id else "outgoing",
+                    "other_user_id": msg.receiver_id if msg.sender_id == user_id else msg.sender_id,
+                    "source": "dm"
+                })
+
+    # Direct Messages: Videos
+    dm_video_msgs = db.query(DirectMessage).filter(
+        DirectMessage.text.startswith("[VIDEO:"),
+        (DirectMessage.sender_id == user_id) | (DirectMessage.receiver_id == user_id)
+    ).order_by(DirectMessage.timestamp.desc()).limit(10).all()
+
+    for msg in dm_video_msgs:
+        if "[VIDEO:" in msg.text:
+            filename = msg.text.split("[VIDEO:")[1].split("]")[0]
+            vid = db.query(VideoModel).filter_by(filename=filename).first()
+            if vid:
+                media_items.append({
+                    "type": "video",
+                    "filename": filename,
+                    "width": vid.width,
+                    "height": vid.height,
+                    "timestamp": msg.timestamp.isoformat(),
+                    "direction": "incoming" if msg.sender_id != user_id else "outgoing",
+                    "other_user_id": msg.receiver_id if msg.sender_id == user_id else msg.sender_id,
+                    "source": "dm"
+                })
+
+    # Channel Messages
+    if subscribed_channel_ids:
+        channel_msgs = db.query(ChannelMessage).filter(
+            ChannelMessage.channel_id.in_(subscribed_channel_ids),
+            ChannelMessage.text.startswith("[")
+        ).order_by(ChannelMessage.timestamp.desc()).limit(20).all()
+
+        for msg in channel_msgs:
+            if "[IMAGE:" in msg.text:
+                filename = msg.text.split("[IMAGE:")[1].split("]")[0]
+                img = db.query(ImageModel).filter_by(filename=filename).first()
+                channel = db.query(Channel).filter_by(id=msg.channel_id).first()
+                if img:
+                    media_items.append({
+                        "type": "image",
+                        "filename": filename,
+                        "width": img.width,
+                        "height": img.height,
+                        "timestamp": msg.timestamp.isoformat(),
+                        "direction": "channel",
+                        "other_user_id": msg.sender_id,
+                        "source": "channel",
+                        "channel_id": msg.channel_id,
+                        "channel_name": channel.name if channel else "Unknown",
+                    })
+
+            elif "[VIDEO:" in msg.text:
+                filename = msg.text.split("[VIDEO:")[1].split("]")[0]
+                vid = db.query(VideoModel).filter_by(filename=filename).first()
+                if vid:
+                    media_items.append({
+                        "type": "video",
+                        "filename": filename,
+                        "width": vid.width,
+                        "height": vid.height,
+                        "timestamp": msg.timestamp.isoformat(),
+                        "direction": "channel",
+                        "other_user_id": msg.sender_id,
+                        "source": "channel"
+                    })
+
+    # Final sort by timestamp
+    media_items.sort(key=lambda m: m["timestamp"], reverse=True)
+
+    return media_items
+
+
+
+@app.get("/test-random-images")
+def get_test_images(db: Session = Depends(get_db)):
+
+    print("✅ /test-random-images route hit")
+
+    images = db.query(ImageModel).order_by(ImageModel.id.desc()).limit(10).all()
+    return [
+    {
+        "filename": img.filename,
+        "width": img.width,
+        "height": img.height,
+        "uploader_id": img.uploader_id,
+    }
+    for img in images
+    ]
+
+@app.post("/subscribe/{user_id}/{channel_id}")
+def subscribe_to_channel(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    exists = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
+    if not exists:
+        new_sub = UserChannel(user_id=user_id, channel_id=channel_id)
+        db.add(new_sub)
+        db.commit()
+    return {"subscribed": True}
+
+@app.delete("/unsubscribe/{user_id}/{channel_id}")
+def unsubscribe_from_channel(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    sub = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
+    if sub:
+        db.delete(sub)
+        db.commit()
+    return {"subscribed": False}
+
+@app.get("/is-subscribed/{user_id}/{channel_id}")
+def is_subscribed(user_id: int, channel_id: int, db: Session = Depends(get_db)):
+    exists = db.query(UserChannel).filter_by(user_id=user_id, channel_id=channel_id).first()
+    return {"subscribed": bool(exists)}
