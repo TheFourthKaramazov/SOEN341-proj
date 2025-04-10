@@ -296,6 +296,7 @@ def send_direct_message(msg: DirectMessageCreate, db: Session = Depends(get_db))
     new_msg = store_direct_message(db, msg.sender_id, msg.receiver_id, msg.text)
     return {"message": new_msg}
 
+
 @app.post("/channel-messages/")
 def create_channel_message(msg: ChannelMessageCreate, db: Session = Depends(get_db)):
     new_msg = store_channel_message(db, msg.sender_id, msg.channel_id, msg.text)
@@ -304,6 +305,7 @@ def create_channel_message(msg: ChannelMessageCreate, db: Session = Depends(get_
         "channel_id": new_msg["channel_id"],
         "text": new_msg["text"]
     }
+
 
 
 # store Direct Messages
