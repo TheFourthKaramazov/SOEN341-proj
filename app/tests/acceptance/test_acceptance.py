@@ -1,4 +1,4 @@
-# app/tests/acceptance/test_acceptance.py
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
@@ -16,8 +16,7 @@ def override_get_db():
         yield db
     finally:
         db.close()
-
-# Use our custom override in the FastAPI app
+#overriding db
 app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
@@ -30,7 +29,7 @@ def fresh_db():
     """
     init_db(force_reset=True)
     yield
-    # No teardown needed
+    
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -102,12 +101,12 @@ def test_channel_creation_requires_admin(db_session, create_users):
     """
     normal_user, admin_user = create_users
 
-    # normal tries => should fail 403
+    # normal tries,should fail 403
     payload = {"name": "NormalUserChannel", "is_public": True}
     resp_normal = client.post("/channels/", json=payload, headers={"User-Id": str(normal_user.id)})
     assert resp_normal.status_code == 403, f"Expected 403, got {resp_normal.status_code}"
 
-    # admin tries => should succeed 200
+    # admin tries, should succeed 200
     payload = {"name": "AdminChannel", "is_public": True}
     resp_admin = client.post("/channels/", json=payload, headers={"User-Id": str(admin_user.id)})
     assert resp_admin.status_code == 200, f"Expected 200, got {resp_admin.status_code}"
