@@ -21,7 +21,7 @@ TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def setup_database():
     """
     Creates all tables in the in-memory DB once per session,
-    then optionally drops them after tests (if desired).
+    then optionally drops them
     """
     Base.metadata.create_all(bind=engine)
     yield
@@ -30,8 +30,8 @@ def setup_database():
 @pytest.fixture(scope="function")
 def db_session():
     """
-    Each test gets its own transaction-scoped session.
-    Rolls back changes after each test.
+    
+    
     """
     session = TestSessionLocal()
     try:
@@ -43,7 +43,7 @@ def db_session():
 def test_store_direct_message(db_session):
     """
     Tests store_direct_message to ensure it correctly saves
-    a DirectMessage and returns the right dictionary.
+    a DirectMessage 
     """
     # Create two users in the DB
     sender = User(username="Alice", password_hash="alicepass", is_admin=False)
@@ -74,7 +74,7 @@ def test_store_direct_message(db_session):
 def test_store_channel_message(db_session):
     """
     Tests store_channel_message to ensure it correctly saves
-    a ChannelMessage and returns the right dictionary.
+    a ChannelMessage 
     """
     # Create a user and a channel
     user = User(username="TestUser", password_hash="testpass", is_admin=False)
