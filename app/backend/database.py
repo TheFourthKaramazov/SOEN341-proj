@@ -40,4 +40,4 @@ def init_db(force_reset=False):
     print("Tables in database:", tables)
 
     if not tables:
-        print("⚠️ ERROR: No tables were created. Something is wrong.")
+        print(" ERROR: No tables were created. Something is wrong.")

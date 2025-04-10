@@ -271,12 +271,39 @@ async def websocket_channel_endpoint(
         if not active_connections[channel_id]:
             del active_connections[channel_id]
 
-
 # retrieve Users
 @app.get("/users/")
 def get_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return [{"id": user.id, "name": user.username} for user in users]
+
+# Create User
+@app.post("/users/")
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.username == user.username).first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    new_user = User(username=user.username, password_hash=user.password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {"id": new_user.id, "username": new_user.username}
+
+# Send Direct Message
+@app.post("/messages/")
+def send_direct_message(msg: DirectMessageCreate, db: Session = Depends(get_db)):
+    new_msg = store_direct_message(db, msg.sender_id, msg.receiver_id, msg.text)
+    return {"message": new_msg}
+
+@app.post("/channel-messages/")
+def create_channel_message(msg: ChannelMessageCreate, db: Session = Depends(get_db)):
+    new_msg = store_channel_message(db, msg.sender_id, msg.channel_id, msg.text)
+    return {
+        "id": new_msg["id"],
+        "channel_id": new_msg["channel_id"],
+        "text": new_msg["text"]
+    }
 
 
 # store Direct Messages
@@ -303,12 +330,12 @@ def store_direct_message(db: Session, sender_id: int, receiver_id: int, text: st
 
 def store_channel_message(db: Session, sender_id: int, channel_id: int, text: str):
     sender = db.query(User).filter(User.id == sender_id).first()
-    channel = db.query(User).filter(User.id == channel_id).first()
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
 
     if not sender or not channel:
         raise HTTPException(status_code=404, detail="Sender or receiver not found")
 
-    new_message = DirectMessage(sender_id=sender_id, channel_id=channel_id, text=text)
+    new_message = ChannelMessage(sender_id=sender_id, channel_id=channel_id, text=text)
     db.add(new_message)
     db.commit()
     db.refresh(new_message)
@@ -397,7 +424,7 @@ logger = logging.getLogger(__name__)
 
 
 @app.post("/channels/")
-async def create_channel(channel: ChannelCreate, db: Session = Depends(get_db), user_id: int = Header(None)):
+async def create_channel(channel: ChannelCreate, db: Session = Depends(get_db), user_id: int = Header(None,alias="User-id")):
     logger.debug(f"Received request to create channel. User ID: {user_id}")
 
     try:
@@ -447,7 +474,7 @@ async def create_channel(channel: ChannelCreate, db: Session = Depends(get_db), 
 
 # delete channel
 @app.delete("/delete_channel/{channel_id}")
-async def delete_channel(channel_id: int, user_id: int = Header(...), db: Session = Depends(get_db)):
+async def delete_channel(channel_id: int, user_id: int = Header(..., alias="User-Id"), db: Session = Depends(get_db)):
     current_user = db.query(User).filter(User.id == user_id).first()
 
     # check if user exists
@@ -494,7 +521,7 @@ def join_channel(channel_id: int, user_id: int, db=Depends(get_db)):
 
 
 @app.get("/channels/", response_model=list[ChannelResponse])
-def get_channels(user_id: int = Header(None), db: Session = Depends(get_db)):
+def get_channels(user_id: int = Header(None,alias="User-id"), db: Session = Depends(get_db)):
     """Retrieve all available channels, including public channels and private channels the user is part of."""
     public_channels = db.query(Channel).filter(Channel.is_public == True).all()
 
@@ -519,7 +546,7 @@ def get_channels(user_id: int = Header(None), db: Session = Depends(get_db)):
 async def delete_channel_message(
         message_id: int,
         db: Session = Depends(get_db),
-        user_id: int = Header(None)
+        user_id: int = Header(None,alias="User-id")
 ):
     # Check if admin
     current_user = db.query(User).filter(User.id == user_id).first()
