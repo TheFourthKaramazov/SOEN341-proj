@@ -30,3 +30,13 @@ jobs:
         run: |
           .\venv\Scripts\Activate.ps1
           pytest app/tests/test_api.py
+
+      - name: Run test_image.py
+        run: |
+          .\venv\Scripts\Activate.ps1
+          pytest app/tests/test_image.py
+          
+      - name: Run test_video.py
+        run: |
+          .\venv\Scripts\Activate.ps1
+          pytest app/tests/test_image.py
