@@ -1,3 +1,13 @@
+<!-- two screenshots side‑by‑side, identical size -->
+<p align="center">
+  <img
+    src="https://github.com/user-attachments/assets/5ed34e74-de7f-4db8-bf08-f6cef40928f3"
+    alt="Screenshot – chat UI"
+    width="100%" style="min-width:300px; margin-right:1%">
+
+</p>
+
+
 # Description
 
 This project is a real-time communication platform designed for seamless interaction through text channels and direct messaging. Users can join topic-specific channels, engage in one-on-one conversations, and share messages in a structured and organized interface. The platform supports role-based permissions, allowing administrators to create and manage channels while moderating conversations. Built with a focus on usability and security, it ensures efficient communication with real-time updates. 
@@ -6,74 +16,39 @@ This project is a real-time communication platform designed for seamless interac
 
 The goal is to develop a real-time communication platform for seamless text-based interactions, including text channels, direct messages, and role-based permissions, prioritizing responsiveness, scalability, and security with FastAPI, WebSockets, and Vue.js. In the short term, we aim to set up backend infrastructure, secure user authentication with JWT, real-time messaging, and a dynamic frontend with Vue.js, while ensuring secure deployment via Vercel and Docker. Long-term goals focus on enhancing scalability, adding advanced features, strengthening security, and implementing CI/CD pipelines. Deliverables are structured across four sprints: Sprint 1 covers setting up the environment; Sprint 2 focuses on core features, testing, and CI setup; Sprint 3 adds new features with TA feedback; Sprint 4 handles bug fixing, final testing, and documentation.
 
-## Core Features
-
-### Direct Messaging
-
-#### What is direct messaging?
-Direct messaging is one of the core features in our app that allows users to communicate in real time. When a user sends a message, the receiving user sees the message instantly without needing to refresh their screen.
-
-#### Direct Message User Experience
-Users can start a private conversation in the following way:
-* User clicks on another user's username.
-* A small popup appears with an input field.
-    * The input field has the placeholder text
-    
-```sh
-Private message OtherUser
-```
-
-#### Direct Message Functionality
-* User's client establishes a persistent connection with the server using WebSockets.
-* When the user sends a private message, their client will send their message over the WebSocket connection to the server.
 
 
-This message will be sent as a JSON string and include the IDs of both the sender and the receiver, a timestamp and the actual text.
+## Completed Features
 
-```sh
-{
-  "sender": {
-    "id": "12345",
-  },
-  "receiver": {
-    "id": "67890",
-  },
-  "timestamp": "2025-01-31T12:34:56Z",
-  "text": "This new messaging app is pretty cool!"
-}
-```
-
-* The server receives the message and sends it to the reciever.
-    * The receiver's client immediately updates their view to show the message in real time.
-
-#### Direct Messaging Roadmap
-For the moment, our main goal is to allow a user to send a simple message over the server and have it appear instantly for the receiver. Once this is functional, we will refactor to improve efficiency as well as adding security by encrypting the messages.
-
-### Role-Based User Permissions
-
-#### What is role-based user permission?
-Role-based user permissions are defined roles in the app that allow different actions to a user based on their assigned role. In our app, there are two roles: Admin and Member.
-
-#### Admin and Member permissions
-The admin role in the app can create and delete channels and moderate messages, which includes deleting those messages. They can also send messages in channels.
-The member can only send and view messages in the allowed channels.
+### Direct Real‑Time Messaging
+- Private DM threads between any two users  
+- Typing indicator & instant delivery via persistent WebSocket channels  
 
 ### Text Channels
+- Topic‑specific chat rooms listable, joinable, and leavable at will  
+- Live message streams with automatic scroll and lazy‑loaded history  
+- Media sharing (images & videos) identical to DMs
+- Admin can create and delete channels
+- Users can subscribe and unsubscribe 
 
-#### What Are Text Channels?
-Text channels are dedicated spaces where users can send and receive messages. They help organize conversations by keeping them relevant to their given topic.
+### Channel & Role Management
+- **Admin**: create / delete channels, delete any message  
+- **Member**: post, edit own messages in joined channels  
+- UI clearly labels role; permission checks enforced server‑side
 
-#### Text Channel Functionality
-- Users can browse a list of available text channels and join the ones they are interested in.
-- Users can send and receive messages in their respective text channels using WebSockets, which allows real-time communication. Messages are stored in the database table associated with the channel.
-- Messages are displayed with real-time updates, which is implemented using Vue.js on the frontend.
+### Secure Authentication
+- Email + password login page with client‑side validation  
+- Separate admin and member token scopes
 
-### Custom Feature
-There are multiple possible custom features that could be included in our messaging app. For now we will list a few ones, focus on the core features such as sending and receiving messages, then we will choose and implement our custom feature. Here are possibilities :
+### Media Uploads
+- Drag‑and‑drop or clipboard paste for images and videos 
+- Re‑rendered thumbnails for faster previews
 
-- Sending pictures/video files as messages (using FastAPI to handle the file uploads, and a database to store the files).
-- Personalized feed showing unread messages from private channels.
-- Message scheduling (message is sent at a specific later time, can be done with FastAPI by storing the messages and sending them at the specific time).
+### Interactive Home Page
+- Unified feed showing:
+  - Sent and Received Images/Videos
+  - Inline media previews  
+
 
 ## Team Members
 - Brandon Leblanc - 40058666 @TheFourthKaramazov
